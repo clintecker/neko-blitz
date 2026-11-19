@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createScore } from "../public/game/night-score.mjs";
+import { createScore } from "../app/audio/night-score.mjs";
 import { seeded } from "./lib/rng.mjs";
 
 const moves = [

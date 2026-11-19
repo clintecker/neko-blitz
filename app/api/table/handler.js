@@ -9,6 +9,10 @@ import {
   RuleViolation,
 } from "../../../public/game/table.mjs";
 import { playBotStep } from "../../../public/game/arcade-bots.mjs";
+import {
+  chooseTurn as cheapTurn,
+  chooseDiscard as cheapDiscard,
+} from "../../../public/game/arcade-policy.mjs";
 
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const CODE_LENGTH = 7;
@@ -195,10 +199,15 @@ export function createTableHandler({
   }
 
   // A poll only advances the bots, and only once per BOT_THINK_MS of idleness.
+  // Room bots keep the cheap house policy: coach.mjs's tables() are too costly
+  // on the request path.
   function tickBots(room, row, at) {
     if (room.ended || !room.table || room.table.phase === "end") return false;
     if (room.table.seats[room.table.turn].human) return false;
-    return at - row.updated >= BOT_THINK_MS && playBotStep(room.table);
+    return (
+      at - row.updated >= BOT_THINK_MS &&
+      playBotStep(room.table, cheapTurn, cheapDiscard)
+    );
   }
 
   // start and rematch deal the same table; only their gate on the old one differs.

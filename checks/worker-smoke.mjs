@@ -73,7 +73,7 @@ test("built Worker serves the game and versioned D1 rooms", { timeout: 90000 }, 
     const page = await fetch(origin);
     assert.equal(page.status, 200);
     assert.match(await page.text(), /BLITZ/);
-    for (const asset of ["/art/club-doors.webp", "/game/night-synth.mjs", "/fonts/inter.woff2"]) {
+    for (const asset of ["/art/club-doors.webp", "/fonts/inter.woff2"]) {
       const response = await fetch(origin + asset);
       assert.equal(response.status, 200, asset);
       assert.ok((await response.arrayBuffer()).byteLength > 1000, asset);

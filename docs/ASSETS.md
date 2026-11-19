@@ -14,8 +14,11 @@ The repository includes the assets needed to run the game. External images and m
 | `neko-playmat.webp` | Nine-slice table frame and felt |
 | `neko-card-back.webp` | Face-down deck |
 | `card-cat.png`, `mochi.webp`, `pip.webp`, `hex.webp` | Player and crew portraits |
+| `og-neko-blitz.jpg` | Social share card for link unfurls (Open Graph and Twitter) |
 
 The illustrations were created with AI image-generation tools for this project. The repository includes the final assets. Original image-generation prompts and intermediate images are not part of the source snapshot. Project artwork is distributed under the root MIT terms.
+
+`og-neko-blitz.jpg` is exported from the same AI-generated club art at 1216 × 640 for Open Graph and Twitter cards.
 
 The table frame's source artwork is 1440 × 720. Corner caps are 200 × 140. The CSS repeats the rails and preserves corner proportions rather than stretching the whole image.
 
@@ -29,7 +32,8 @@ Neko Pixel is the project-specific pixel font. Its adjacent `Neko-Pixel-LICENSE.
 
 ## Sound
 
-The current score is generated at runtime by `public/game/night-score.mjs` and `night-synth.mjs`. It uses Web Audio oscillators and effects, with no external music service or sampled commercial recordings. The source is covered by the project's MIT license.
+The current score is generated at runtime by `app/audio/night-score.mjs` and
+`app/audio/night-synth.mjs`. It uses Web Audio oscillators and effects, with no external music service or sampled commercial recordings. The source is covered by the project's MIT license.
 
 All current music and effects are generated from the score and instrument sources above. The source package needs no sampled-audio directory or separate rendering toolchain.
 

@@ -83,9 +83,15 @@ function readerDialect(view, facts) {
   };
 }
 
-export function playBotStep(table) {
+// The default pair is the coach's. The room path injects the cheap house policy
+// so a bot tick never builds coach.mjs's lookup tables.
+export function playBotStep(
+  table,
+  chooseTurnPolicy = chooseTurn,
+  chooseDiscardPolicy = chooseDiscard,
+) {
   if (table.rules.botStyle !== "reader")
-    return botStep(table, chooseTurn, chooseDiscard);
+    return botStep(table, chooseTurnPolicy, chooseDiscardPolicy);
   if (table.phase === "end" || table.seats[table.turn].human) return false;
   const view = projectTable(table, table.turn);
   const { knockOrStock, keepFour } = readerDialect(

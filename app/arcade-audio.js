@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { TableSynth } from "../public/game/night-synth.mjs";
+import { TableSynth } from "./audio/night-synth.mjs";
 
 const initial = { enabled: true, music: true, volume: 75, sparkle: 78 };
 const storageKey = "neko-blitz.mixer";

@@ -58,7 +58,7 @@ A browser gesture is required before Web Audio can start. Overall sound and **Ar
 
 The mixer exposes playback status, the current chord, and a restart button. After backgrounding or a phone interruption, verify the audio itself in addition to its displayed state.
 
-The score and instruments are implemented in `public/game/night-score.mjs` and `night-synth.mjs`. Update those sources to change the soundtrack. No pre-rendered music files are required.
+The score and instruments are implemented in `app/audio/night-score.mjs` and `app/audio/night-synth.mjs`. Update those sources to change the soundtrack. No pre-rendered music files are required.
 
 ## Built preview
 

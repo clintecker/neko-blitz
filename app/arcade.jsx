@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import {
+  CalendarDays,
   ChevronRight,
   CircleHelp,
   AudioLines,
@@ -21,7 +22,16 @@ import {
   Zap,
   LogOut,
 } from "lucide-react";
-import { fullCard, defaults } from "../public/game/table.mjs";
+import {
+  fullCard,
+  defaults,
+  act as playCard,
+  deal as dealRound,
+  projectTable,
+} from "../public/game/table.mjs";
+import { playBotStep } from "../public/game/arcade-bots.mjs";
+import { dailyOutcome, localDateKey, recordDaily, startDaily } from "./daily.js";
+import { DailyCard } from "./daily-card";
 import { useTable, useAdvice } from "./use-table";
 import Strategy from "./strategy";
 import { ReadChip, Reads } from "./reads";
@@ -299,7 +309,11 @@ function Board({ v: actual, room, act, next, busy, host, play }) {
 
 export default function Arcade() {
   const [stage, setStage] = useState("loading");
-  const table = useTable(stage !== "table"),
+  // The daily match is a seeded, in-memory table: it never touches the saved
+  // solo hand, so the solo bot loop pauses while it is on screen.
+  const [daily, setDaily] = useState(null),
+    [dailyResult, setDailyResult] = useState(null);
+  const table = useTable(stage !== "table" || Boolean(daily)),
     { packet, busy, operate, goSolo, enter } = table;
   const [modal, setModal] = useState(null),
     [objective, setObjective] = useState("match"),
@@ -312,8 +326,9 @@ export default function Arcade() {
   );
   const planned = useRef(null);
   const lastRoom = useRef(null);
-  const v = packet?.view,
-    r = packet?.rules || defaults,
+  const v = daily?.view || packet?.view,
+    // The daily deal always plays the default house rules.
+    r = (daily ? defaults : packet?.rules) || defaults,
     sound = useArcadeSound(stage === "table" && v?.knocker != null && v.phase !== "end"),
     advice = useAdvice(
       stage === "table" ? v : null,
@@ -332,6 +347,10 @@ export default function Arcade() {
   useEffect(() => {
     if (table.invite) setModal("friends");
   }, [table.invite]);
+  useEffect(() => {
+    // A room seat always wins over an open daily table.
+    if (packet?.code) setDaily(null);
+  }, [packet?.code]);
   const close = () => {
     setModal(null);
     setParentSheet(null);
@@ -374,13 +393,78 @@ export default function Arcade() {
       document.getElementById("table")?.focus({ preventScroll: true }),
     );
   };
+  const showDaily = () =>
+    setDaily((d) => (d ? { ...d, view: projectTable(d.table, 0) } : d));
+  const openDaily = () => {
+    close();
+    sound.play("ui");
+    const key = localDateKey(),
+      dailyTable = startDaily(key);
+    setDailyResult(null);
+    setDaily({ key, table: dailyTable, view: projectTable(dailyTable, 0) });
+    setStage("table");
+  };
+  const dailyMove = (action, card) => {
+    if (!daily) return;
+    try {
+      playCard(daily.table, 0, action, card);
+    } catch (e) {
+      table.setError(e.message);
+      return;
+    }
+    showDaily();
+  };
+  const dailyNext = () => {
+    // The last seat standing ends the daily; every earlier showdown deals on.
+    if (daily?.view.result?.winner != null) {
+      const outcome = dailyOutcome(daily.view),
+        { streak } = recordDaily(daily.key, outcome.won ? "win" : "loss");
+      setDailyResult({ date: daily.key, ...outcome, streak });
+      setModal("daily");
+      return;
+    }
+    if (!daily) return;
+    dealRound(daily.table);
+    showDaily();
+  };
+  const leaveDaily = () => {
+    setModal(null);
+    setDaily(null);
+    setDailyResult(null);
+  };
+  // Bots play their daily seats on the same beats as the solo table.
+  useEffect(() => {
+    const view = daily?.view;
+    if (!view || view.phase === "end" || view.seats[view.turn].human) return;
+    const timer = setTimeout(
+      () => {
+        playBotStep(daily.table);
+        showDaily();
+      },
+      view.phase === "throw" ? 1180 : 1080,
+    );
+    return () => clearTimeout(timer);
+  }, [daily]);
   if (stage === "loading") return <LoadingScreen />;
   if (stage === "welcome")
-    return <Welcome practice={practice} skip={finishLesson} />;
+    return (
+      <>
+        <Welcome practice={practice} skip={finishLesson} />
+        <button className="daily-entry" onClick={openDaily}>
+          <CalendarDays size={16} />
+          Daily deal
+        </button>
+      </>
+    );
   if (stage === "practice")
     return <Practice leave={finishLesson} play={sound.play} />;
 
   const round = v?.round || 1;
+  const tableLabel = packet?.code
+    ? "Friends’ table"
+    : daily
+      ? "Daily deal"
+      : "Solo table";
   const roomPanel = packet?.code ? "roominfo" : "friends";
   const guest = Boolean(packet?.code && !packet.host);
   const exitLabel = guest ? "Leave game and go to lobby" : "End game and go to lobby";
@@ -388,6 +472,9 @@ export default function Arcade() {
   const exitGame = async () => {
     if (await table.endGame()) {
       planned.current = null;
+      // Leaving the table also drops an in-progress daily deal.
+      setDaily(null);
+      setDailyResult(null);
       close();
       setStage("table");
     }
@@ -448,7 +535,7 @@ export default function Arcade() {
               <b>{String(round).padStart(2, "0")}</b>
             </button>}
             {v && <span className="hud-table">
-              {packet?.code ? "Friends’ table" : "Solo table"} ·{" "}
+              {tableLabel} ·{" "}
               {r.payout === "lowest"
                 ? "Lowest hand pays"
                 : "Highest stays safe"}
@@ -508,11 +595,11 @@ export default function Arcade() {
               {v ? (
                 <Board
                   v={v}
-                  room={packet.code}
-                  act={move}
-                  next={next}
+                  room={packet?.code}
+                  act={daily ? dailyMove : move}
+                  next={daily ? dailyNext : next}
                   busy={busy}
-                  host={packet.host}
+                  host={daily ? true : packet?.host}
                   play={sound.play}
                 />
               ) : packet?.code ? (
@@ -578,6 +665,9 @@ export default function Arcade() {
             <div className="game-menu">
               {[
                 [GraduationCap, "Play a practice hand", practice],
+                ...(packet?.code
+                  ? []
+                  : [[CalendarDays, "Daily deal", openDaily]]),
                 [CircleHelp, "How to play", () => open("rules")],
                 [LibraryBig, "Strategy guide", () => open("strategy")],
                 [
@@ -664,11 +754,17 @@ export default function Arcade() {
             setObjective={setObjective}
           />
         )}
+        {modal === "daily" && dailyResult && (
+          <Modal title="Daily deal" onClose={leaveDaily}>
+            <DailyCard {...dailyResult} />
+          </Modal>
+        )}
         {modal === "setup" && (
           <Setup
             rules={r}
             close={close}
             deal={(rules) => {
+              setDaily(null);
               goSolo(rules);
               close();
             }}

@@ -61,7 +61,7 @@ You can attach a custom domain and use that as the main game URL. Room invitatio
 | `public/game/table.mjs` | Pure card rules and projections that hide opponents' hands |
 | `public/game/coach.mjs` | Public-information strategy model |
 | `public/game/reads.mjs`, `arcade-bots.mjs` | Opponent inference and bot policy |
-| `public/game/night-score.mjs`, `night-synth.mjs` | Procedural harmony and Web Audio instruments |
+| `app/audio/night-score.mjs`, `night-synth.mjs` | Procedural harmony and Web Audio instruments |
 | `public/art/`, `public/fonts/` | Game artwork and font assets |
 | `checks/` | Automated regressions and reproducible strategy studies |
 | `migrations/` | Versioned SQL migrations for the online room table |
