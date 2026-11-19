@@ -1,0 +1,40 @@
+# Assets and attribution
+
+The repository includes the assets needed to run the game. External images and music are not fetched during a hand.
+
+## Artwork
+
+`public/art/` contains the project-specific generated illustrations and pixel-style game graphics.
+
+| File | Use |
+| --- | --- |
+| `blitz-logo.png` | Main wordmark |
+| `club-doors.webp` | Cat dealer and illustrated lobby backdrop |
+| `neon-alley.webp` | Club atmosphere and supporting backgrounds |
+| `neko-playmat.webp` | Nine-slice table frame and felt |
+| `neko-card-back.webp` | Face-down deck |
+| `card-cat.png`, `mochi.webp`, `pip.webp`, `hex.webp` | Player and crew portraits |
+
+The illustrations were created with AI image-generation tools for this project. The repository includes the final assets. Original image-generation prompts and intermediate images are not part of the source snapshot. Project artwork is distributed under the root MIT terms.
+
+The table frame's source artwork is 1440 × 720. Corner caps are 200 × 140. The CSS repeats the rails and preserves corner proportions rather than stretching the whole image.
+
+`docs/images/` contains screenshots of the game, provided under the same project terms.
+
+## Fonts
+
+Inter is bundled with its full SIL Open Font License and original attribution in `public/fonts/Inter-OFL.txt`. Retain that file when redistributing the font.
+
+Neko Pixel is the project-specific pixel font. Its adjacent `Neko-Pixel-LICENSE.txt` carries the project's MIT terms, and the font metadata identifies that license. The original font generator is not included in this snapshot. System monospace and sans-serif fallbacks are specified in CSS.
+
+## Sound
+
+The current score is generated at runtime by `public/game/night-score.mjs` and `night-synth.mjs`. It uses Web Audio oscillators and effects, with no external music service or sampled commercial recordings. The source is covered by the project's MIT license.
+
+`public/audio/` contains the original synthesized cue WAVs and earlier loop exports. `scripts/render_blitz_audio.py` regenerates that older sample set with NumPy, SciPy, and ffmpeg. Its optional Python dependencies are pinned in `requirements-audio.txt`. The live Glass Canopy score has its own source and is not reproduced by that older sample renderer.
+
+## Third-party material
+
+Lucide supplies the interface icons. The installed package retains its upstream license, and a copy is included in `vendor/lucide-LICENSE.txt`. Vinext's license is copied to `vendor/vinext-LICENSE.txt`. Existing shadcn and Sites plugin notices remain beside their vendored files.
+
+See [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md) for the complete attribution map. Every newly added third-party asset should have a source and compatible license recorded before it is committed.

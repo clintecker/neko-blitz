@@ -1,0 +1,3 @@
+# Optional dependencies used to regenerate the original audio samples.
+numpy==2.3.5
+scipy==1.17.0

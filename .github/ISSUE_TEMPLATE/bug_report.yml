@@ -1,0 +1,31 @@
+name: Bug report
+description: Report a gameplay, online-room, audio, or layout problem.
+body:
+  - type: markdown
+    attributes:
+      value: Redact room codes, invite links, tokens, and personal information. Use SECURITY.md for vulnerabilities.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Include the behavior you expected.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Device and browser
+      placeholder: iPhone, iOS version, Safari version, portrait
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Rules, screenshots, or logs
+      description: Include scoring settings and whether this is solo or online play.

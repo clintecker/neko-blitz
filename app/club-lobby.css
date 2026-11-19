@@ -1,0 +1,746 @@
+/* Keep the control panel centered independently of the animated scenery. */
+.game-app .club-lobby {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: 690px;
+  width: 100%;
+  overflow: hidden;
+  padding: 0 20px 66px;
+  background: #160d2a;
+  border: 2px solid #af65b5;
+  box-shadow: inset 0 0 35px #ed53db55;
+}
+.club-lobby .club-scenery {
+  position: absolute;
+  z-index: -5;
+  inset: 0;
+  background:
+    linear-gradient(
+      0deg,
+      #120a25e6 0%,
+      #21102c35 48%,
+      #150d2540 100%),
+    url(/art/club-doors.webp) 50% 43% / cover;
+  animation: club-room-breathe 16s ease-in-out infinite alternate;
+}
+.club-lobby .club-scanlines {
+  position: absolute;
+  z-index: 7;
+  inset: 0;
+  pointer-events: none;
+  opacity: .14;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent 0 3px,
+      #07061d 3px 4px);
+}
+.club-marquee {
+  position: absolute;
+  inset: 0 0 auto;
+  display: flex;
+  overflow: hidden;
+  height: 29px;
+  background: #140b23ee;
+  border-block: 2px dotted #ffe391;
+  box-shadow: 0 0 15px #ff7ed0;
+  color: #ffe791;
+  font: 700 12px/25px var(--mono);
+  white-space: nowrap;
+  letter-spacing: 2px;
+}
+.club-marquee span {
+  flex: 0 0 auto;
+  padding-right: 24px;
+  animation: club-marquee 25s linear infinite;
+}
+.club-lobby .club-title {
+  position: absolute;
+  top: 6%;
+  left: 50%;
+  transform: translateX(-50%) rotate(-3deg);
+  width: min(390px, 65%);
+  z-index: 2;
+  filter: drop-shadow(0 8px 0 #190d2f) drop-shadow(0 0 20px #fb59bd88);
+}
+.club-title img {
+  display: block;
+  width: 100%;
+  height: auto;
+  image-rendering: pixelated;
+}
+.club-lobby .club-title h2 {
+  margin: 8px 0 0;
+  color: #edfff9;
+  font: 800 14px/1.3 var(--mono);
+  text-transform: uppercase;
+  letter-spacing: 6px;
+  text-shadow: 2px 2px #742e86, 0 0 14px #7afcdd;
+}
+.club-neon {
+  position: absolute;
+  z-index: 1;
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  width: 120px;
+  height: 120px;
+  color: #ff9edc;
+  background: #1b0e2de0;
+  border: 3px double currentColor;
+  border-radius: 15px;
+  box-shadow: 0 0 0 5px #1e1236, 0 0 25px #ff56b2;
+  text-shadow: 0 0 12px currentColor;
+  animation: club-neon-hum 4.7s infinite;
+}
+.club-neon b {
+  font:
+    900 42px/1 "Archivo Black",
+    Inter,
+    sans-serif;
+}
+.club-neon span {
+  font: 800 14px/1.2 var(--mono);
+  letter-spacing: 3px;
+}
+.club-neon-left {
+  left: 5%;
+  top: 17%;
+  transform: rotate(-12deg);
+}
+.club-neon-right {
+  right: 5%;
+  top: 24%;
+  transform: rotate(9deg);
+  color: #8bffe3;
+  box-shadow: 0 0 0 5px #1e1236, 0 0 25px #32e6cf;
+  animation-delay: -2s;
+}
+.club-neon-right b {
+  font-size: 30px;
+}
+.club-lobby .club-menu {
+  position: relative;
+  z-index: 5;
+  flex: 0 0 auto;
+  width: min(390px, 100%);
+  margin-inline: auto;
+  padding: 19px;
+  background:
+    linear-gradient(
+      145deg,
+      #251632ef,
+      #110f22f2);
+  border: 2px solid #f49ad2;
+  border-radius: 20px;
+  box-shadow:
+    0 0 0 5px #22152e,
+    0 0 0 7px #8f699a,
+    0 0 40px #f068b65c,
+    0 20px 35px #080511b0;
+}
+.club-menu-lights {
+  position: absolute;
+  inset: -7px;
+  border: 3px dashed #ffdea1;
+  border-radius: 24px;
+  pointer-events: none;
+  animation: club-border-lights 1.3s steps(2) infinite;
+}
+.club-lobby .lobby-actions {
+  display: grid;
+  justify-items: center;
+  justify-content: center;
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+}
+.club-lobby .lobby-actions .action {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 57px;
+  justify-self: center;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  border-radius: 11px;
+  font-size: 18px;
+  font-weight: 800;
+  white-space: nowrap;
+  border: 1px solid #eee1ff55;
+  box-shadow: 0 4px 0 #070715;
+}
+.club-lobby .lobby-actions .club-play {
+  min-height: 70px;
+  font-size: 24px;
+  color: #0a342c;
+  background:
+    linear-gradient(
+      105deg,
+      #b8ffe5,
+      #6bf3db 60%,
+      #baffbe);
+  box-shadow: 0 5px 0 #277f73, 0 0 25px #85ffe344;
+  animation: club-play-glow 3s ease-in-out infinite;
+}
+.club-play > span {
+  font-size: 24px;
+}
+.club-lobby .club-friends {
+  background:
+    linear-gradient(
+      105deg,
+      #ab5eaa,
+      #613f93);
+  color: #fff3ff;
+}
+.club-utilities {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  width: 100%;
+}
+.club-lobby .club-utilities .action {
+  min-height: 49px;
+  font-size: 13px;
+  gap: 6px;
+  color: #f0e5ff;
+  background: #29233e;
+}
+.club-lobby .lobby-actions button:hover {
+  filter: brightness(1.14);
+  transform: translateY(-2px);
+}
+.club-lobby .lobby-actions button:active {
+  transform: translateY(3px);
+}
+.club-card-fan {
+  position: absolute;
+  z-index: 2;
+  bottom: 10%;
+  width: 180px;
+  height: 240px;
+  animation: club-card-sway 6s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+.club-card-fan-left {
+  left: 7%;
+  --tilt: -15deg;
+}
+.club-card-fan-right {
+  right: 6%;
+  --tilt: 14deg;
+  animation-delay: -3s;
+}
+.club-card-fan > span {
+  position: absolute;
+  left: 22%;
+  top: 10%;
+  width: 110px;
+  aspect-ratio: 5 / 7;
+  transform-origin: 50% 120%;
+  transform: rotate(calc(var(--fan) * 21deg));
+  filter: drop-shadow(0 6px 8px #0a051e99);
+}
+.club-card-fan .card-face {
+  width: 100%;
+}
+.club-crew {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+}
+.club-lobby .club-critter {
+  position: absolute;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 7px 10px;
+  width: 112px;
+  background: #1b1329db;
+  color: #ffebfa;
+  border: 2px solid #b58ac5;
+  border-radius: 18px;
+  box-shadow: 0 0 0 4px #221532, 0 0 23px #ff8dd44f;
+  pointer-events: auto;
+  animation: club-critter-float 3.4s ease-in-out infinite alternate;
+}
+.club-critter .sprite {
+  width: 80px;
+  height: 80px;
+  image-rendering: pixelated;
+}
+.club-critter span {
+  font: 800 13px/1.2 var(--mono);
+}
+.club-critter-1 {
+  left: 4%;
+  bottom: 41%;
+  --tilt: -9deg;
+}
+.club-critter-2 {
+  right: 5%;
+  bottom: 43%;
+  --tilt: 8deg;
+  animation-delay: -1.5s !important;
+}
+.club-critter-3 {
+  right: 22%;
+  top: 9%;
+  --tilt: 12deg;
+  width: 94px !important;
+  animation-delay: -.8s !important;
+}
+.club-critter-3 .sprite {
+  width: 62px;
+  height: 62px;
+}
+.club-critter:hover {
+  filter: brightness(1.3);
+}
+.club-lobby .club-dealer-boop {
+  position: absolute;
+  z-index: 3;
+  top: 21%;
+  left: 30%;
+  width: 40%;
+  height: 32%;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.club-dealer-boop:focus-visible {
+  outline: 3px dashed #a8ffe1;
+  outline-offset: -12px;
+}
+.club-confetti {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+  overflow: hidden;
+}
+.club-confetti i {
+  position: absolute;
+  top: -10%;
+  left: var(--x);
+  color: #ff9edc;
+  font-style: normal;
+  font-size: 20px;
+  text-shadow: 0 0 10px currentColor;
+  animation: club-confetti-fall var(--duration) linear var(--delay) infinite;
+  opacity: .7;
+}
+.club-confetti i:nth-child(3n) {
+  color: #8affe1;
+  font-size: 13px;
+}
+.club-confetti i:nth-child(4n) {
+  color: #ffe0a0;
+}
+.club-burst {
+  position: absolute;
+  top: 39%;
+  left: 50%;
+  z-index: 8;
+  pointer-events: none;
+}
+.club-burst-1 {
+  left: 10%;
+  top: 52%;
+}
+.club-burst-2 {
+  left: 89%;
+  top: 50%;
+}
+.club-burst-3 {
+  left: 74%;
+  top: 18%;
+}
+.club-burst i {
+  position: absolute;
+  color: #afffe1;
+  font: 800 25px/1 var(--mono);
+  animation: club-boop .85s ease-out both;
+}
+.club-burst i:nth-child(even) {
+  color: #ff91d2;
+}
+.club-burst b {
+  display: block;
+  white-space: nowrap;
+  transform: translate(-50%, -70px);
+  color: #fff2a9;
+  text-shadow: 0 3px 0 #2b123e, 0 0 12px #fb83d0;
+  font: 800 19px/1.3 var(--mono);
+  animation: club-greeting 1.2s both;
+}
+.club-floor {
+  position: absolute;
+  z-index: -1;
+  inset: auto -30% -17%;
+  height: 35%;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      transparent 0 59px,
+      #ed69db66 60px 61px),
+    repeating-linear-gradient(
+      0deg,
+      transparent 0 39px,
+      #73efd355 40px 41px);
+  transform: perspective(220px) rotateX(44deg);
+  mask-image: linear-gradient(transparent, #000);
+}
+.club-coins {
+  position: absolute;
+  inset: auto 0 10px;
+  height: 32px;
+  pointer-events: none;
+  z-index: 2;
+}
+.club-coins i {
+  position: absolute;
+  left: calc(12% + var(--coin) * 9%);
+  bottom: calc((var(--coin) / 2) * 2px);
+  width: 35px;
+  height: 12px;
+  border: 3px dashed #ffe8aa;
+  border-radius: 50%;
+  background: #a053a3;
+  box-shadow: 0 4px #3a2356, 0 7px #db8cc7;
+  transform: rotate(calc(var(--coin) * 17deg));
+}
+@keyframes club-marquee {
+  to {
+    transform: translateX(-100%);
+  }
+}
+@keyframes club-room-breathe {
+  from {
+    transform: scale(1.01);
+  }
+  to {
+    transform: scale(1.05);
+    filter: saturate(1.16);
+  }
+}
+@keyframes club-neon-hum {
+  0%, 5%, 8%, 100% {
+    opacity: 1;
+  }
+  6%, 9% {
+    opacity: .74;
+  }
+}
+@keyframes club-border-lights {
+  to {
+    border-color: #ff8ecf;
+  }
+}
+@keyframes club-play-glow {
+  50% {
+    box-shadow: 0 5px 0 #277f73, 0 0 33px #85ffe388;
+  }
+}
+@keyframes club-card-sway {
+  from {
+    transform: rotate(var(--tilt)) translateY(0);
+  }
+  to {
+    transform: rotate(calc(var(--tilt) + 5deg)) translateY(-14px);
+  }
+}
+@keyframes club-critter-float {
+  from {
+    transform: rotate(var(--tilt)) translateY(0);
+  }
+  to {
+    transform: rotate(calc(var(--tilt) - 4deg)) translateY(-10px);
+  }
+}
+@keyframes club-confetti-fall {
+  to {
+    transform: translate(var(--drift), 950px) rotate(280deg);
+  }
+}
+@keyframes club-boop {
+  from {
+    opacity: 1;
+    transform: rotate(var(--angle)) translateX(0) rotate(calc(-1 * var(--angle)));
+  }
+  to {
+    opacity: 0;
+    transform: rotate(var(--angle)) translateX(var(--travel)) rotate(calc(-1 * var(--angle)));
+  }
+}
+@keyframes club-greeting {
+  0% {
+    opacity: 0;
+  }
+  15%, 65% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@media (max-width: 700px) {
+  .game-app .club-lobby {
+    min-height: 0;
+    padding: 0 20px 47px;
+  }
+  .club-lobby .club-scenery {
+    background-position: 48% 35%;
+  }
+  .club-lobby .club-title {
+    top: 6.5%;
+    width: min(280px, 68%);
+  }
+  .club-lobby .club-title h2 {
+    font-size: 11px;
+    letter-spacing: 4px;
+  }
+  .club-lobby .club-menu {
+    width: min(330px, 100%);
+    padding: 13px;
+    border-radius: 16px;
+  }
+  .club-lobby .lobby-actions {
+    gap: 10px;
+  }
+  .club-lobby .lobby-actions .action.club-play {
+    min-height: 62px;
+    font-size: 23px;
+  }
+  .club-lobby .lobby-actions .action {
+    min-height: 52px;
+    font-size: 16px;
+  }
+  .club-lobby .club-utilities .action {
+    min-height: 46px;
+    font-size: 12px;
+  }
+  .club-lobby .club-utilities svg {
+    width: 16px;
+  }
+  .club-neon {
+    width: 68px;
+    height: 70px;
+    border-radius: 9px;
+  }
+  .club-neon b {
+    font-size: 31px;
+  }
+  .club-neon span {
+    font-size: 9px;
+    letter-spacing: 1px;
+  }
+  .club-neon-left {
+    top: 23%;
+    left: 3%;
+  }
+  .club-neon-right {
+    top: 22%;
+    right: 3%;
+  }
+  .club-neon-right b {
+    font-size: 20px;
+  }
+  .club-lobby .club-critter {
+    width: 69px;
+    padding: 4px;
+    border-radius: 12px;
+  }
+  .club-critter .sprite {
+    width: 52px;
+    height: 52px;
+  }
+  .club-critter span {
+    font-size: 10px;
+  }
+  .club-critter-1 {
+    left: 3%;
+    bottom: 43%;
+  }
+  .club-critter-2 {
+    right: 3%;
+    bottom: 43%;
+  }
+  .club-critter-3 {
+    right: 5%;
+    top: 4%;
+    width: 55px !important;
+  }
+  .club-critter-3 .sprite {
+    width: 38px;
+    height: 38px;
+  }
+  .club-critter-3 span {
+    font-size: 9px;
+  }
+  .club-card-fan {
+    bottom: 14%;
+    width: 110px;
+    height: 160px;
+    opacity: .9;
+  }
+  .club-card-fan > span {
+    width: 75px;
+  }
+  .club-card-fan-left {
+    left: -35px;
+  }
+  .club-card-fan-right {
+    right: -35px;
+  }
+  .club-confetti i {
+    font-size: 15px;
+  }
+}
+@media (max-height: 650px) and (orientation: portrait) {
+  .club-lobby .club-title {
+    top: 8%;
+    width: 52%;
+  }
+  .club-lobby .club-title h2 {
+    font-size: 9px;
+    margin-top: 3px;
+    letter-spacing: 2px;
+  }
+  .game-app .club-lobby {
+    padding-bottom: 28px;
+  }
+  .club-lobby .club-menu {
+    padding: 10px;
+  }
+  .club-lobby .lobby-actions .action.club-play {
+    min-height: 52px;
+    font-size: 21px;
+  }
+  .club-lobby .lobby-actions .action {
+    min-height: 45px;
+  }
+  .club-lobby .club-utilities .action {
+    min-height: 44px;
+    font-size: 11px;
+  }
+  .club-lobby .lobby-actions {
+    gap: 8px;
+  }
+  .club-critter-1,
+  .club-critter-2 {
+    bottom: 48%;
+  }
+  .club-neon {
+    top: 28%;
+  }
+}
+@media (orientation: landscape) and (max-height: 550px) {
+  .game-app .club-lobby {
+    min-height: 0;
+    padding: 20px 22px;
+    justify-content: center;
+  }
+  .club-lobby .club-title {
+    top: 12%;
+    left: 24%;
+    width: 30%;
+  }
+  .club-lobby .club-title h2 {
+    font-size: 9px;
+    letter-spacing: 2px;
+  }
+  .club-lobby .club-menu {
+    width: min(330px, 45%);
+    margin: 0 0 0 42%;
+    padding: 10px;
+  }
+  .club-lobby .lobby-actions {
+    gap: 7px;
+  }
+  .club-lobby .lobby-actions .action {
+    min-height: 44px;
+    font-size: 15px;
+  }
+  .club-lobby .lobby-actions .action.club-play {
+    min-height: 49px;
+    font-size: 20px;
+  }
+  .club-lobby .club-utilities .action {
+    min-height: 44px;
+    font-size: 11px;
+  }
+  .club-lobby .club-neon-left {
+    width: 64px;
+    height: 64px;
+    left: 2%;
+    top: auto;
+    bottom: 7%;
+  }
+  .club-lobby .club-neon-right {
+    display: none;
+  }
+  .club-lobby .club-critter-1 {
+    left: 5%;
+    bottom: 17%;
+    width: 60px;
+  }
+  .club-lobby .club-critter-2 {
+    left: 27%;
+    right: auto;
+    bottom: 5%;
+    width: 60px;
+  }
+  .club-lobby .club-critter-3 {
+    top: 3%;
+    right: 2%;
+    width: 50px !important;
+  }
+  .club-critter .sprite {
+    width: 40px;
+    height: 40px;
+  }
+  .club-critter-3 .sprite {
+    width: 32px;
+    height: 32px;
+  }
+  .club-card-fan {
+    bottom: 0;
+    left: 13%;
+    width: 100px;
+    height: 100px;
+  }
+  .club-card-fan-right {
+    display: none;
+  }
+  .club-card-fan > span {
+    width: 54px;
+  }
+  .club-marquee {
+    height: 23px;
+    font-size: 10px;
+    line-height: 19px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .club-lobby *,
+  .club-lobby *::before,
+  .club-lobby *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  .club-burst {
+    display: none;
+  }
+}

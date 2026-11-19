@@ -1,0 +1,21 @@
+name: Feature request
+description: Propose a focused improvement.
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: What would this improve?
+      description: Describe the player or contributor need.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+    validations:
+      required: true
+  - type: textarea
+    id: considerations
+    attributes:
+      label: Alternatives and considerations
+      description: Mention rules, accessibility, mobile use, or online compatibility when relevant.
