@@ -1,19 +1,14 @@
 // Public-information strategy model for three-card Thirty-One.
 // Card IDs: 13 cards per suit, with A=0 through K=12. No I/O or dependencies.
+import { cardPips, scoreHand, settleRound, suitOf } from "./rules.mjs";
+
 const DECK = Array.from({ length: 52 }, (_, i) => i);
-const PIPS = DECK.map((c) => (c % 13 === 0 ? 11 : Math.min(10, (c % 13) + 1)));
-const SUIT = DECK.map((c) => Math.floor(c / 13));
 const RANK = DECK.map((c) => c % 13);
 const C2 = DECK.map((c) => (c * (c - 1)) / 2);
 const C3 = DECK.map((c) => (c * (c - 1) * (c - 2)) / 6);
 const COUNT = 22100;
-const CACHE = new Map();
-const DEFAULTS = Object.freeze({
-  payout: "lowest",
-  triples: false,
-  tieSafe: true,
-  failedKnock: 1,
-});
+let TABLES = null;
+const DEFAULTS = Object.freeze({ payout: "lowest", tieSafe: true });
 
 function rulesOf(rules = {}) {
   return { ...DEFAULTS, ...rules };
@@ -40,28 +35,9 @@ function key(a, b, c) {
   return a + C2[b] + C3[c];
 }
 
-function rawScore(a, b, c, triples) {
-  if (triples && RANK[a] === RANK[b] && RANK[b] === RANK[c]) return 30.5;
-  let x = PIPS[a],
-    y = PIPS[b],
-    z = PIPS[c];
-  if (SUIT[a] === SUIT[b]) {
-    x += y;
-    y = 0;
-  }
-  if (SUIT[a] === SUIT[c]) {
-    x += z;
-    z = 0;
-  } else if (SUIT[b] === SUIT[c]) {
-    y += z;
-    z = 0;
-  }
-  return Math.max(x, y, z);
-}
+const scoreOf = (a, b, c) => scoreHand([a, b, c]).score;
 
-export function score(hand, rules = DEFAULTS) {
-  return rawScore(hand[0], hand[1], hand[2], rules.triples ?? DEFAULTS.triples);
-}
+export const score = (hand) => scoreOf(hand[0], hand[1], hand[2]);
 
 // Generate generic one-draw expectations once. Enumerating four-card sets also
 // counts every possible stock draw for each of their four three-card subsets.
@@ -93,8 +69,8 @@ function gatherOneDraw(values, totals) {
   }
 }
 
-function tables(triples = DEFAULTS.triples) {
-  if (CACHE.has(triples)) return CACHE.get(triples);
+function tables() {
+  if (TABLES) return TABLES;
   const raw = new Float64Array(COUNT),
     finish = new Float64Array(COUNT);
   const hold = new Float64Array(COUNT),
@@ -104,7 +80,7 @@ function tables(triples = DEFAULTS.triples) {
     for (let b = 1; b < c; b++) {
       for (let a = 0; a < b; a++) {
         const i = a + C2[b] + C3[c];
-        raw[i] = rawScore(a, b, c, triples);
+        raw[i] = scoreOf(a, b, c);
         // A blitz charges every rival even at a multiway table.
         finish[i] = raw[i] + (raw[i] === 31 ? 7 : 0);
       }
@@ -117,9 +93,8 @@ function tables(triples = DEFAULTS.triples) {
   }
   gatherOneDraw(hold, stockNormal);
   for (let i = 0; i < COUNT; i++) stockNormal[i] /= 49;
-  const t = { raw, finish, hold, stockNormal, stockFinal };
-  CACHE.set(triples, t);
-  return t;
+  TABLES = { raw, finish, hold, stockNormal, stockFinal };
+  return TABLES;
 }
 
 function leaveOut(hand, cardIndex) {
@@ -145,8 +120,9 @@ function discardIndex(four, forbidden, grades) {
     if (
       grade > bestGrade ||
       (grade === bestGrade &&
-        (PIPS[four[i]] < PIPS[four[best]] ||
-          (PIPS[four[i]] === PIPS[four[best]] && four[i] < four[best])))
+        (cardPips(four[i]) < cardPips(four[best]) ||
+          (cardPips(four[i]) === cardPips(four[best]) &&
+            four[i] < four[best])))
     ) {
       best = i;
       bestGrade = grade;
@@ -156,7 +132,7 @@ function discardIndex(four, forbidden, grades) {
 }
 
 export function chooseDiscard(four, forbiddenCard = null, context = {}) {
-  const t = tables(context.rules?.triples ?? DEFAULTS.triples);
+  const t = tables();
   return four[
     discardIndex(four, forbiddenCard, context.final ? t.finish : t.hold)
   ];
@@ -167,12 +143,7 @@ export function chooseDiscard(four, forbiddenCard = null, context = {}) {
 function policy(
   hand,
   top,
-  players,
-  turns,
-  finalTurn,
-  rules,
-  t,
-  mode = "table",
+  { players, turns, finalTurn, rules, t, mode = "table" },
 ) {
   const four = [hand[0], hand[1], hand[2], top];
   const ownKey = key(hand[0], hand[1], hand[2]);
@@ -195,7 +166,7 @@ function policy(
           : 25.5
       : (players === 2 ? 25.5 : players === 3 ? 23 : 21.5) +
         (rules.tieSafe ? 0 : 0.65) -
-        (rules.failedKnock === 1 ? 0.85 : 0);
+        0.85;
   const knockAt = Math.min(30.5, bias + base + Math.min(turns, 4) * 0.65);
   const bigGain = t.raw[upKey] >= Math.max(25, scoreNow + 3) && scoreNow < 27;
   if (!finalTurn && scoreNow >= knockAt && !bigGain) return "knock";
@@ -211,15 +182,13 @@ function policy(
 
 export function chooseTurn(hand, top, context = {}) {
   const rules = rulesOf(context.rules);
-  return policy(
-    hand,
-    top,
-    context.players ?? 4,
-    context.turns ?? 0,
-    Boolean(context.final),
+  return policy(hand, top, {
+    players: context.players ?? 4,
+    turns: context.turns ?? 0,
+    finalTurn: Boolean(context.final),
     rules,
-    tables(rules.triples),
-  );
+    t: tables(),
+  });
 }
 
 function generator(seed) {
@@ -315,7 +284,7 @@ function prepare(view) {
     firstSeen,
     pool,
     rules,
-    t: tables(rules.triples),
+    t: tables(),
     hand: view.hand,
     top: view.discard.at(-1),
     knocker,
@@ -340,18 +309,14 @@ function historyWeight(finalHands, p, rnd) {
   if (p.knocker >= 0) {
     // The knocker's current hand is exactly the hand they chose to lock.
     const knockTop = events[p.finalStart]?.top ?? p.top;
-    if (
-      policy(
-        hands[p.knocker],
-        knockTop,
-        n,
-        p.turns[p.knocker],
-        false,
-        rules,
-        t,
-      ) !== "knock"
-    )
-      logWeight -= 1.8;
+    const locked = policy(hands[p.knocker], knockTop, {
+      players: n,
+      turns: p.turns[p.knocker],
+      finalTurn: false,
+      rules,
+      t,
+    });
+    if (locked !== "knock") logWeight -= 1.8;
   }
   for (let k = events.length - 1; k >= 0; k--) {
     const e = events[k],
@@ -383,15 +348,13 @@ function historyWeight(finalHands, p, rnd) {
     const age = events.length - 1 - k;
     if (age >= n * 3) continue;
     const temper = Math.pow(0.76, Math.floor(age / n));
-    const predicted = policy(
-      hand,
-      e.top,
-      n,
-      e.turn,
-      k >= p.finalStart,
+    const predicted = policy(hand, e.top, {
+      players: n,
+      turns: e.turn,
+      finalTurn: k >= p.finalStart,
       rules,
       t,
-    );
+    });
     if (predicted !== e.source)
       logWeight -= temper * (predicted === "knock" ? 1.3 : 0.9);
     const four = [hand[0], hand[1], hand[2], drawn];
@@ -423,70 +386,34 @@ function sampleWorld(p, rnd) {
 }
 
 // 60,000 fresh shuffled rounds per (rule combination, table size). The keys
-// encode triples / tie protection / failed-knock cost. Within a table entry,
-// "double" counts one seat losing twice; integer k means k seats each lost one.
+// are ruleTag() values, so only the lowest-pays 001/011 and highest-pays H0
+// entries are reachable. Within an entry, integer k means k seats each lost one
+// token and "double" counts one seat losing twice.
 // Generated by calibrate.mjs with fixed seeds; no live network/model is used.
 const FUTURE_FREQUENCIES = {
-  101: {
-    2: { 1: 60000, 2: 0, double: 0 },
-    3: { 1: 49610, 2: 10390, 3: 0, double: 0 },
-    4: { 1: 48639, 2: 4304, 3: 7057, 4: 0, double: 0 },
-  },
-  102: {
-    2: { 1: 55625, 2: 1, double: 4374 },
-    3: { 1: 46322, 2: 11490, 3: 0, double: 2188 },
-    4: { 1: 46924, 2: 4294, 3: 7757, 4: 0, double: 1025 },
-  },
-  111: {
-    2: { 1: 60000, 2: 0, double: 0 },
-    3: { 1: 50307, 2: 9693, 3: 0, double: 0 },
-    4: { 1: 50030, 2: 4411, 3: 5559, 4: 0, double: 0 },
-  },
-  112: {
-    2: { 1: 57696, 2: 0, double: 2304 },
-    3: { 1: 47671, 2: 10559, 3: 0, double: 1770 },
-    4: { 1: 47605, 2: 4469, 3: 7209, 4: 0, double: 717 },
-  },
   "001": {
     2: { 1: 60000, 2: 0, double: 0 },
     3: { 1: 48775, 2: 11225, 3: 0, double: 0 },
     4: { 1: 48020, 2: 4430, 3: 7550, 4: 0, double: 0 },
-  },
-  "002": {
-    2: { 1: 55463, 2: 3, double: 4534 },
-    3: { 1: 45746, 2: 12156, 3: 0, double: 2098 },
-    4: { 1: 46420, 2: 4341, 3: 8418, 4: 0, double: 821 },
   },
   "011": {
     2: { 1: 60000, 2: 0, double: 0 },
     3: { 1: 49780, 2: 10220, 3: 0, double: 0 },
     4: { 1: 49329, 2: 4696, 3: 5975, 4: 0, double: 0 },
   },
-  "012": {
-    2: { 1: 58029, 2: 1, double: 1970 },
-    3: { 1: 47241, 2: 11280, 3: 0, double: 1479 },
-    4: { 1: 46877, 2: 4556, 3: 7939, 4: 0, double: 628 },
-  },
   H0: {
     2: { 1: 57248, 2: 0, double: 0 },
     3: { 1: 5088, 2: 54712, 3: 0, double: 0 },
     4: { 1: 515, 2: 6700, 3: 52764, 4: 0, double: 0 },
   },
-  H1: {
-    2: { 1: 57439, 2: 0, double: 0 },
-    3: { 1: 4742, 2: 55085, 3: 0, double: 0 },
-    4: { 1: 417, 2: 5960, 3: 53606, 4: 0, double: 0 },
-  },
 };
 const FUTURE_PATTERNS = new Map();
 const EQUITIES = new Map();
 
+// "H0" pays everyone below the highest; the rest pay the lowest, keyed by tie
+// protection. Triples and knock cost are fixed, so those digits never vary.
 function ruleTag(rules) {
-  return rules.payout === "highest"
-    ? "H" + Number(rules.triples)
-    : String(+rules.triples) +
-        String(+rules.tieSafe) +
-        String(rules.failedKnock);
+  return rules.payout === "highest" ? "H0" : "0" + Number(rules.tieSafe) + "1";
 }
 
 function chargePatterns(n, tag) {
@@ -576,7 +503,6 @@ function exactOpeningKnock(p) {
     rivalBlitzes = 0,
     value = 0,
     chance = 0;
-  const loseCost = Math.min(p.lives[0], p.rules.failedKnock);
   const outcome = (scoreOther) => {
     if (scoreOther === 31) return [1, -1, equityAfterCharge([1, 0], p)];
     if (p.rules.payout === "highest") {
@@ -586,7 +512,7 @@ function exactOpeningKnock(p) {
         : [1, -1, equityAfterCharge([1, 0], p)];
     }
     if (hero < scoreOther || (hero === scoreOther && !p.rules.tieSafe))
-      return [1, -loseCost, equityAfterCharge([loseCost, 0], p)];
+      return [1, -1, equityAfterCharge([1, 0], p)];
     return [0, 1, equityAfterCharge([0, 1], p)];
   };
   const byScore = new Map();
@@ -607,7 +533,13 @@ function exactOpeningKnock(p) {
       for (let i = 0; i < j; i++) {
         const hand = [pool[i], pool[j], pool[k]];
         if (p.t.raw[key(...hand)] === 31) continue;
-        const move = policy(hand, p.top, 2, 0, true, p.rules, p.t);
+        const move = policy(hand, p.top, {
+          players: 2,
+          turns: 0,
+          finalTurn: true,
+          rules: p.rules,
+          t: p.t,
+        });
         if (move === "discard") {
           const four = [...hand, p.top];
           add(
@@ -643,40 +575,26 @@ function exactOpeningKnock(p) {
   };
 }
 
+// Settle one simulated round through the table's own settlement rule and grade
+// it from the acting seat's point of view. Hands are indexed by seat position,
+// so position 0 is us; a negative knocker or blitz means there was none.
 function settle(hands, p, knocker, blitz) {
-  const n = p.n,
-    charges = Array(n).fill(0);
-  if (blitz >= 0) {
-    for (let i = 0; i < n; i++) if (i !== blitz) charges[i] = 1;
-  } else if (p.rules.payout === "highest") {
-    const scores = hands.map((h) => p.t.raw[key(...h)]),
-      high = Math.max(...scores);
-    for (let i = 0; i < n; i++) charges[i] = +(scores[i] < high);
-  } else {
-    const scores = hands.map((h) => p.t.raw[key(...h)]);
-    const low = Math.min(...scores);
-    const lows = scores
-      .map((s, i) => (s === low ? i : -1))
-      .filter((i) => i >= 0);
-    if (lows.includes(knocker)) {
-      if (lows.length === 1 || !p.rules.tieSafe)
-        charges[knocker] = p.rules.failedKnock;
-      else for (const seat of lows) if (seat !== knocker) charges[seat] = 1;
-    } else for (const seat of lows) charges[seat] = 1;
-  }
-  const actual = charges.map((v, i) => Math.min(p.lives[i], v));
-  // All remaining seats at their last token replay a fully tied stock-out.
-  if (knocker < 0 && blitz < 0 && actual.every((loss, i) => loss >= p.lives[i]))
-    actual.fill(0);
-  const theirs = actual.slice(1).reduce((a, b) => a + b, 0) / (n - 1);
+  const { paid } = settleRound({
+    scores: hands.map((h) => p.t.raw[key(...h)]),
+    lives: p.lives,
+    knocker: knocker >= 0 ? knocker : null,
+    blitz: blitz >= 0 ? [blitz] : [],
+    rules: p.rules,
+  });
+  const theirs = paid.slice(1).reduce((a, b) => a + b, 0) / (p.n - 1);
   return {
-    value: theirs - actual[0],
-    equity: equityAfterCharge(actual, p),
-    safe: +(actual[0] === 0),
-    lost: actual[0] > 0,
+    value: theirs - paid[0],
+    equity: equityAfterCharge(paid, p),
+    safe: +(paid[0] === 0),
+    lost: paid[0] > 0,
     blitz: blitz === 0,
     opponentBlitz: blitz > 0,
-    showdownLoss: blitz < 0 && actual[0] > 0,
+    showdownLoss: blitz < 0 && paid[0] > 0,
   };
 }
 
@@ -716,16 +634,14 @@ function rollout(world, p, action, plan) {
     first = false;
     actor = (actor + 1) % p.n;
     if (actor === knocker) return settle(hands, p, knocker, -1);
-    action = policy(
-      hands[actor],
-      top,
-      p.n,
-      turns[actor],
-      knocker >= 0,
-      p.rules,
-      p.t,
-      actor === 0 ? plan.mode : "table",
-    );
+    action = policy(hands[actor], top, {
+      players: p.n,
+      turns: turns[actor],
+      finalTurn: knocker >= 0,
+      rules: p.rules,
+      t: p.t,
+      mode: actor === 0 ? plan.mode : "table",
+    });
   }
 }
 
@@ -759,22 +675,19 @@ function immediateOuts(p) {
   };
 }
 
-// A long draw history can leave a handful of high-weight compatible deals.
-// Expand the proposal bank when needed, with a bounded work budget on phones.
-// Effective sample size, rather than the number of raw proposals, governs the
-// confidence flag and the self-normalized Monte Carlo standard errors.
-function effectiveCount(logs) {
+// Self-normalized weights for one proposal bank. Effective sample size, rather
+// than the number of raw proposals, governs the confidence flag and the
+// self-normalized Monte Carlo standard errors.
+function weighted(logs) {
   const largest = Math.max(...logs);
-  let total = 0,
-    squared = 0;
-  for (const log of logs) {
-    const w = Math.exp(log - largest);
-    total += w;
-    squared += w * w;
-  }
-  return (total * total) / squared;
+  const weights = logs.map((log) => Math.exp(log - largest));
+  const total = weights.reduce((a, b) => a + b, 0);
+  const squared = weights.reduce((s, w) => s + w * w, 0);
+  return { weights, total, ess: (total * total) / squared };
 }
 
+// A long draw history can leave a handful of high-weight compatible deals.
+// Expand the proposal bank when needed, with a bounded work budget on phones.
 function collectWorlds(p, count, rng, maxCount, targetEss) {
   const worlds = [],
     logs = [];
@@ -793,7 +706,7 @@ function collectWorlds(p, count, rng, maxCount, targetEss) {
     if (
       target >= maxCount ||
       worlds.length < target ||
-      effectiveCount(logs) >= targetEss
+      weighted(logs).ess >= targetEss
     )
       break;
     target = Math.min(maxCount, target + count);
@@ -801,44 +714,30 @@ function collectWorlds(p, count, rng, maxCount, targetEss) {
   return { worlds, logs };
 }
 
+// A blitz pays one token from every rival. Under the round metric that makes
+// it provable; for match odds, compare against a superset of all legal
+// post-round ledgers. This proves the immediate decision within the stated
+// future model without assuming that its equity is monotone in a rival's lives.
+function canProveBlitzOptimal(p) {
+  if (p.metric !== "equity") return true;
+  const blitz = Array.from({ length: p.n }, (_, i) => +(i !== 0));
+  const target = equityAfterCharge(blitz, p);
+  for (let bits = 0; bits < 1 << p.n; bits++) {
+    const loss = Array.from({ length: p.n }, (_, i) => (bits >> i) & 1);
+    if (equityAfterCharge(loss, p) > target + 1e-12) return false;
+  }
+  return true;
+}
+
 // Use an independent pilot to tune the actor's continuation. Each policy is
 // executable from that actor's own cards and public information. A separate
 // sample evaluates the chosen plan, so no action picks the best hidden-world
 // outcome and the displayed advantage does not get an in-sample winner bonus.
-function canProveBlitzOptimal(p) {
-  if (p.metric === "safe") return true;
-  // For match odds, compare against a superset of all legal post-round
-  // ledgers. This proves the immediate decision within the stated future
-  // model without assuming that its equity is monotone in a rival's lives.
-  if (p.metric === "equity") {
-    const blitz = Array.from({ length: p.n }, (_, i) => +(i !== 0));
-    const target = equityAfterCharge(blitz, p);
-    for (let bits = 0; bits < 1 << p.n; bits++) {
-      const loss = Array.from({ length: p.n }, (_, i) => (bits >> i) & 1);
-      if (equityAfterCharge(loss, p) > target + 1e-12) return false;
-    }
-    if (p.rules.payout !== "highest" && p.rules.failedKnock === 2) {
-      for (let i = 0; i < p.n; i++) {
-        const loss = Array(p.n).fill(0);
-        loss[i] = Math.min(p.lives[i], 2);
-        if (equityAfterCharge(loss, p) > target + 1e-12) return false;
-      }
-    }
-    return true;
-  }
-  return (
-    p.rules.payout === "highest" ||
-    p.rules.failedKnock === 1 ||
-    p.n > 2 ||
-    p.lives[1] === 1
-  );
-}
-
 function trainPlans(p, moves, pilot, rnd) {
   const four = [...p.hand, p.top];
   const exactDrops = [0, 1, 2].filter((i) => p.t.raw[leaveOut(four, i)] === 31);
-  // Heads-up, beating a rival's failed double-cost knock can pay two.
-  // A certain blitz pays one, so retain non-blitz choices in that case.
+  // A proven 31 pays one token from every rival. When that is provably the
+  // best move, evaluate only the discard that keeps it.
   const exactBlitz = exactDrops.length > 0 && canProveBlitzOptimal(p);
   const faceDrops = exactBlitz ? [exactDrops[0]] : [0, 1, 2];
   const choices = {};
@@ -882,20 +781,32 @@ function trainPlans(p, moves, pilot, rnd) {
   );
 }
 
-// Solve the paired, one-decision comparison against the announced policy().
-// The default objective is tournament victory. 'safe' maximizes the chance
-// of keeping this round's token and 'round' maximizes mean rival tokens spent
+// The default objective is tournament victory. 'safe' maximizes the chance of
+// keeping this round's token and 'round' maximizes mean rival tokens spent
 // minus one's own, capped at every seat's remaining tokens.
+function objectiveOf(options) {
+  return options.objective === "safe" || options.objective === "round"
+    ? options.objective
+    : "match";
+}
+
+const METRIC_OF = { match: "equity", safe: "safe", round: "value" };
+const metricFor = (objective) => METRIC_OF[objective];
+
+// A proven blitz is certain. Below 20 sampled worlds the gap is not measured
+// well enough to call, and a lead inside the 95% margin stays 'close'.
+function confidenceFor({ exact, ess, gap }) {
+  if (exact) return "certain";
+  if (ess < 20) return "limited";
+  return gap.mean <= 1.96 * gap.se + 0.002 ? "close" : "clear";
+}
+
+// Solve the paired, one-decision comparison against the announced policy().
 // The reported uncertainty covers sampled worlds only, not policy misspecification.
 export function analyze(view, options = {}) {
   const p = prepare(view);
-  const objective =
-    options.objective === "safe"
-      ? "safe"
-      : options.objective === "round"
-        ? "round"
-        : "match";
-  p.metric = { match: "equity", safe: "safe", round: "value" }[objective];
+  const objective = objectiveOf(options);
+  p.metric = metricFor(objective);
   const n = Math.max(1, Math.min(50000, Math.round(options.samples ?? 480)));
   const rnd = generator(options.seed ?? 31);
   const moves = [
@@ -927,10 +838,7 @@ export function analyze(view, options = {}) {
       };
     return row;
   });
-  const largest = Math.max(...logs),
-    weights = logs.map((w) => Math.exp(w - largest));
-  const total = weights.reduce((x, y) => x + y, 0);
-  const ess = (total * total) / weights.reduce((s, w) => s + w * w, 0);
+  const { weights, total, ess } = weighted(logs);
   const moments = (fn) => summarize(rows, weights, total, ess, fn);
   const actions = {};
   for (const move of moves) {
@@ -975,8 +883,6 @@ export function analyze(view, options = {}) {
   const ranked = moves
     .slice()
     .sort((a, b) => actions[b][metricName] - actions[a][metricName]);
-  // With multiple rivals, a double-cost failure charges at most two rivals'
-  // lives in total. Heads-up it can be worth more than taking a certain blitz.
   const exact = outs.faceupBlitz && canProveBlitzOptimal(p);
   if (exact)
     ranked.splice(
@@ -997,13 +903,9 @@ export function analyze(view, options = {}) {
       se: actions[simulated][errorName],
     };
   }
-  const confidence = exact
-    ? "certain"
-    : ess < 20
-      ? "limited"
-      : gap.mean <= 1.96 * gap.se + 0.002
-        ? "close"
-        : "clear";
+  // One legal move is forced, so there is no margin to measure.
+  const confidence =
+    !second || exact ? "certain" : confidenceFor({ exact, ess, gap });
   const reason = exact
     ? "The face-up card makes 31 immediately."
     : best === "knock"
@@ -1032,7 +934,13 @@ export function analyze(view, options = {}) {
 // improvement from stock is never charged to the specific card we discarded.
 function feedOpportunity(world, p, top, knocker) {
   const hand = world.hands[1];
-  const move = policy(hand, top, p.n, p.turns[1], knocker >= 0, p.rules, p.t);
+  const move = policy(hand, top, {
+    players: p.n,
+    turns: p.turns[1],
+    finalTurn: knocker >= 0,
+    rules: p.rules,
+    t: p.t,
+  });
   const four = [...hand, top];
   const drop = discardIndex(four, top, knocker >= 0 ? p.t.finish : p.t.hold);
   const before = p.t.raw[key(...hand)],
@@ -1113,7 +1021,7 @@ const CARD_RANK = [
 ];
 const CARD_SUIT = ["♠", "♥", "♣", "♦"];
 function cardLabel(c) {
-  return CARD_RANK[RANK[c]] + CARD_SUIT[SUIT[c]];
+  return CARD_RANK[RANK[c]] + CARD_SUIT[suitOf(c)];
 }
 
 function feedMeans(rows, take, weights, total, nextSeat) {
@@ -1138,19 +1046,19 @@ function worldsRead(p, worlds, weights, total) {
       split = [0, 0, 0, 0];
     const picks = [0, 0, 0, 0],
       puts = [0, 0, 0, 0];
-    for (const c of holding) floor[SUIT[c]] += PIPS[c];
+    for (const c of holding) floor[suitOf(c)] += cardPips(c);
     for (const e of p.events)
       if (e.seat === seat) {
-        if (e.picked != null) picks[SUIT[e.picked]]++;
-        puts[SUIT[e.discarded]]++;
+        if (e.picked != null) picks[suitOf(e.picked)]++;
+        puts[suitOf(e.discarded)]++;
       }
     const slots = 3 - holding.length;
     const upper = floor.map(
       (b, s) =>
         b +
         p.pool
-          .filter((c) => SUIT[c] === s)
-          .map((c) => PIPS[c])
+          .filter((c) => suitOf(c) === s)
+          .map(cardPips)
           .sort((a, b) => b - a)
           .slice(0, slots)
           .reduce((a, b) => a + b, 0),
@@ -1160,7 +1068,7 @@ function worldsRead(p, worlds, weights, total) {
     );
     for (let j = 0; j < worlds.length; j++) {
       const sums = [0, 0, 0, 0];
-      for (const c of worlds[j].hands[seat]) sums[SUIT[c]] += PIPS[c];
+      for (const c of worlds[j].hands[seat]) sums[suitOf(c)] += cardPips(c);
       const peak = Math.max(...sums),
         divisions = sums.filter((v) => v === peak).length;
       for (let s = 0; s < 4; s++)
@@ -1232,13 +1140,8 @@ function withDraw(world, source, drawn) {
 // The plan after each candidate is selected on a separate, independent pilot.
 export function analyzeDiscard(view, options = {}) {
   const { p, drawn, source, four, possible } = prepareDrawn(view);
-  const objective =
-    options.objective === "safe"
-      ? "safe"
-      : options.objective === "round"
-        ? "round"
-        : "match";
-  p.metric = { match: "equity", safe: "safe", round: "value" }[objective];
+  const objective = objectiveOf(options);
+  p.metric = metricFor(objective);
   const n = Math.max(1, Math.min(50000, Math.round(options.samples ?? 480)));
   const seed = options.seed ?? 31,
     pilot = Math.max(120, Math.min(1600, Math.ceil(n / 4)));
@@ -1249,7 +1152,7 @@ export function analyzeDiscard(view, options = {}) {
     p.events.length < 4 ? pilot : Math.max(pilot, Math.min(2400, pilot * 3)),
     Math.min(50, pilot / 4),
   );
-  const mx = Math.max(...samples.logs),
+  const { weights: pilotWeights } = weighted(samples.logs),
     modes = ["table", "next", "early", "patient"];
   const plans = {};
   for (const initialDrop of possible) {
@@ -1262,7 +1165,7 @@ export function analyzeDiscard(view, options = {}) {
     if (available.length > 1)
       for (let j = 0; j < samples.worlds.length; j++) {
         const world = withDraw(samples.worlds[j], source, drawn),
-          weight = Math.exp(samples.logs[j] - mx);
+          weight = pilotWeights[j];
         for (let m = 0; m < available.length; m++)
           sums[m] +=
             weight *
@@ -1282,10 +1185,7 @@ export function analyzeDiscard(view, options = {}) {
     p.events.length < 4 ? n : Math.max(n, Math.min(7200, 4 * n)),
     Math.min(100, n / 3),
   );
-  const maximum = Math.max(...logs),
-    weights = logs.map((v) => Math.exp(v - maximum));
-  const total = weights.reduce((a, b) => a + b, 0),
-    ess = (total * total) / weights.reduce((a, b) => a + b * b, 0);
+  const { weights, total, ess } = weighted(logs);
   const rows = worlds.map((undrawn) => {
     const world = withDraw(undrawn, source, drawn),
       row = {};
@@ -1376,13 +1276,7 @@ export function analyzeDiscard(view, options = {}) {
     nextSeat: best.nextSeat,
     margin: gap.mean,
     marginSE: gap.se,
-    confidence: exact
-      ? "certain"
-      : ess < 20
-        ? "limited"
-        : gap.mean <= 1.96 * gap.se + 0.002
-          ? "close"
-          : "clear",
+    confidence: confidenceFor({ exact, ess, gap }),
     exact,
     reason,
     samples: worlds.length,
@@ -1401,8 +1295,6 @@ export function readOpponents(view, options = {}) {
     n,
     n,
   );
-  const mx = Math.max(...logs),
-    w = logs.map((v) => Math.exp(v - mx)),
-    total = w.reduce((s, v) => s + v, 0);
-  return worldsRead(p, worlds, w, total);
+  const { weights, total } = weighted(logs);
+  return worldsRead(p, worlds, weights, total);
 }

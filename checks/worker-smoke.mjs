@@ -10,6 +10,7 @@ import { test } from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+import { postTable } from "./lib/api-request.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const wrangler = path.join(root, "node_modules/wrangler/bin/wrangler.js");
@@ -78,14 +79,10 @@ test("built Worker serves the game and versioned D1 rooms", { timeout: 90000 }, 
       assert.ok((await response.arrayBuffer()).byteLength > 1000, asset);
     }
 
+    const send = postTable(origin);
     async function request(op, fields = {}, token, status = 200) {
-      const response = await fetch(origin + "/api/table", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...(token ? { Authorization: "Bearer " + token } : {}) },
-        body: JSON.stringify({ op, ...fields }),
-      });
-      const data = await response.json();
-      assert.equal(response.status, status, `${op}: ${data.error || "unexpected status"}`);
+      const { status: got, data } = await send(op, fields, token);
+      assert.equal(got, status, `${op}: ${data.error || "unexpected status"}`);
       return data;
     }
 

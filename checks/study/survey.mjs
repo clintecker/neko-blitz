@@ -54,7 +54,7 @@ for (const n of seats)
           active: base.slice(0, n),
           self: 0,
           lives: Array(n).fill(4),
-          rules: { payout, triples: false, failedKnock: 1, tieSafe: true },
+          rules: { payout, tieSafe: true },
         },
         opts,
       );

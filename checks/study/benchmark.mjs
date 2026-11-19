@@ -22,7 +22,7 @@ for (const n of (process.argv[5] ?? "4,3,2").split(",").map(Number)) {
       discard: [up],
       openingDiscard: up,
       lives: Array(n).fill(4),
-      rules: { payout, triples: false, failedKnock: 1, tieSafe: true },
+      rules: { payout, tieSafe: true },
     };
     const a = analyze(view, { samples, seed: 2389, objective });
     results.push({ n, name, hand, up, ...a });

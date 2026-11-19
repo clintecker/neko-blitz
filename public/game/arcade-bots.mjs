@@ -2,30 +2,85 @@
 import { botStep, handValue, projectTable } from "./table.mjs";
 import { chooseDiscard, chooseTurn } from "./coach.mjs";
 import { nextAfterSelf, observed } from "./reads.mjs";
+import { cardPips, suitOf } from "./rules.mjs";
 
-const pip = (card) => (card % 13 === 0 ? 11 : Math.min(10, (card % 13) + 1));
+// Public evidence per card kept in a suit, then per pick, throw and pass in it.
+// The cap stops a long history from outweighing a hand's own points.
+const EVIDENCE = { kept: 1.4, pick: 0.5, drop: 0.5, pass: 0.22, cap: 5 };
+// An exposure this high means the public cards already prove a blitz.
+const BLITZ_PROOF = 40;
 
 // A publicly held pair may prove a blitz. Picks, throws and passes in that suit
 // provide weaker evidence, so they influence close choices by smaller amounts.
 function exposure(card, facts) {
   if (!Number.isInteger(card) || !facts) return 0;
-  const suit = Math.floor(card / 13);
+  const suit = suitOf(card);
   const kept = [...facts.known]
-    .filter((c) => Math.floor(c / 13) === suit)
-    .map(pip)
+    .filter((c) => suitOf(c) === suit)
+    .map(cardPips)
     .sort((a, b) => b - a);
-  if (pip(card) + (kept[0] || 0) + (kept[1] || 0) === 31) return 40;
+  if (cardPips(card) + (kept[0] || 0) + (kept[1] || 0) === 31)
+    return BLITZ_PROOF;
   const evidence = Math.max(
     0,
     Math.min(
-      5,
-      kept.length * 1.4 +
-        facts.picks[suit] * 0.5 -
-        facts.drops[suit] * 0.5 -
-        facts.passes[suit] * 0.22,
+      EVIDENCE.cap,
+      kept.length * EVIDENCE.kept +
+        facts.picks[suit] * EVIDENCE.pick -
+        facts.drops[suit] * EVIDENCE.drop -
+        facts.passes[suit] * EVIDENCE.pass,
     ),
   );
-  return (evidence * pip(card)) / 12;
+  return (evidence * cardPips(card)) / 12;
+}
+
+// A knock leaves the current upcard visible. Drawing stock lets us bury it.
+function withholdFromKnock(standard, top, facts) {
+  return standard === "knock" && exposure(top, facts) === BLITZ_PROOF
+    ? "stock"
+    : standard;
+}
+
+const keepScore = (four, card) =>
+  handValue(four.filter((c) => c !== card)).score;
+
+// Keep the baseline's future drawing value unless public evidence justifies
+// changing it. There is nothing left to protect after the last draw or on the
+// throw that answers the knock.
+function protectedThrow(four, forbidden, baseline, view, facts) {
+  if (view.stockCount === 0 || nextAfterSelf(view) === view.knocker)
+    return baseline;
+  const baselineScore = keepScore(four, baseline);
+  if (baselineScore === 31) return baseline;
+  let best = baseline;
+  let bestValue = baselineScore + 1 - exposure(baseline, facts);
+  for (const card of four) {
+    if (card === forbidden || card === baseline) continue;
+    const value = keepScore(four, card) - exposure(card, facts);
+    if (value > bestValue) {
+      best = card;
+      bestValue = value;
+    }
+  }
+  return best;
+}
+
+// The two knobs a table-reading bot turns around the announced choices: draw
+// stock rather than knock on an upcard that proves a rival blitz, and expose
+// the card a neighbour can least use.
+function readerDialect(view, facts) {
+  return {
+    knockOrStock: (hand, top, context) =>
+      withholdFromKnock(chooseTurn(hand, top, context), top, facts),
+    keepFour: (four, forbidden, context) =>
+      protectedThrow(
+        four,
+        forbidden,
+        chooseDiscard(four, forbidden, context),
+        view,
+        facts,
+      ),
+  };
 }
 
 export function playBotStep(table) {
@@ -33,37 +88,9 @@ export function playBotStep(table) {
     return botStep(table, chooseTurn, chooseDiscard);
   if (table.phase === "end" || table.seats[table.turn].human) return false;
   const view = projectTable(table, table.turn);
-  const receiver = nextAfterSelf(view);
-  const facts = observed(view).get(receiver);
-  const readerTurn = (hand, top, context) => {
-    const standard = chooseTurn(hand, top, context);
-    // A knock leaves the current upcard visible. Drawing stock lets us bury it.
-    return standard === "knock" && exposure(top, facts) === 40
-      ? "stock"
-      : standard;
-  };
-  const readerDiscard = (four, forbidden, context) => {
-    const baseline = chooseDiscard(four, forbidden, context);
-    if (view.stockCount === 0 || receiver === view.knocker) return baseline;
-    const keep = (card) =>
-      handValue(
-        four.filter((c) => c !== card),
-        view.rules,
-      ).score;
-    const baselineScore = keep(baseline);
-    if (baselineScore === 31) return baseline;
-    // Preserve the baseline's future drawing value unless public evidence justifies changing.
-    let best = baseline;
-    let bestValue = baselineScore + 1 - exposure(baseline, facts);
-    for (const card of four) {
-      if (card === forbidden || card === baseline) continue;
-      const value = keep(card) - exposure(card, facts);
-      if (value > bestValue) {
-        best = card;
-        bestValue = value;
-      }
-    }
-    return best;
-  };
-  return botStep(table, readerTurn, readerDiscard);
+  const { knockOrStock, keepFour } = readerDialect(
+    view,
+    observed(view).get(nextAfterSelf(view)),
+  );
+  return botStep(table, knockOrStock, keepFour);
 }

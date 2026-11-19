@@ -1,23 +1,7 @@
-// Exercise rare terminal conditions through the exact same settlement function
-// as the live coach, without adding a testing export to its public API.
+// Exercise rare terminal conditions through the same settlement function the
+// table and the coach both use.
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
-const source = await readFile(
-  new URL("../../public/game/coach.mjs", import.meta.url),
-  "utf8",
-);
-const instrumented =
-  source +
-  `
-export function inspectCharges(hands,lives,knocker,config){
-  const rules=rulesOf(config),p={n:hands.length,rules,t:tables(rules.triples),lives,
-    tag:ruleTag(rules),equityCache:new Map()};
-  return settle(hands,p,knocker,-1);
-}
-`;
-const { inspectCharges } = await import(
-  "data:text/javascript;base64," + Buffer.from(instrumented).toString("base64")
-);
+import { scoreHand, settleRound } from "../../public/game/rules.mjs";
 const hands = [
   [9, 10, 14],
   [22, 23, 27],
@@ -27,13 +11,16 @@ const hands = [
 function progress(knocker, tieSafe, lives) {
   return hands.map((_, i) => {
     const seq = hands.slice(i).concat(hands.slice(0, i));
-    const current = knocker < 0 ? -1 : (knocker - i + 4) % 4;
-    return inspectCharges(seq, lives, current, {
-      payout: "lowest",
-      triples: false,
-      failedKnock: 1,
-      tieSafe,
-    }).safe;
+    const current = knocker < 0 ? null : (knocker - i + 4) % 4;
+    const { paid } = settleRound({
+      scores: seq.map((hand) => scoreHand(hand).score),
+      lives,
+      knocker: current,
+      blitz: [],
+      rules: { payout: "lowest", tieSafe },
+    });
+    // Seat 0 is the one being asked about; a zero charge keeps its token.
+    return +(paid[0] === 0);
   });
 }
 assert.deepEqual(progress(-1, true, [1, 1, 1, 1]), [1, 1, 1, 1]); // replay the stock-out

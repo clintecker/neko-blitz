@@ -1,6 +1,6 @@
 # Neko Arcade Blitz strategy study
 
-This is the calculation behind the in-game guide. The family game starts with four tokens. A knocker on 22 against 26, 20 and 17 keeps their token and only the 17 pays. Every other active seat has one final turn. A suited 31 immediately charges all rivals. A failed knock costs one, and triples use ordinary suit scoring. In the study the knocker is protected on a low tie. The game lets you change that tie rule.
+This is the calculation behind the in-game guide. The family game starts with four tokens. A knocker on 22 against 26, 20 and 17 keeps their token and only the 17 pays. Every other active seat has one final turn. A suited 31 immediately charges all rivals. A failed knock costs one. In the study the knocker is protected on a low tie. The game lets you change that tie rule.
 
 ## Reproduce the results
 

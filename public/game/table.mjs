@@ -1,14 +1,7 @@
 // The host owns this state. Use projectTable() before sending anything to a seat.
-export const defaults = Object.freeze({
-  players: 4,
-  lives: 4,
-  triples: false,
-  tieSafe: true,
-  failedKnock: 1,
-  freeRide: false,
-  botStyle: "arcade",
-  payout: "lowest",
-});
+import { defaults, scoreHand, settleRound } from "./rules.mjs";
+
+export { defaults };
 export const crew = ["Player", "Mochi", "Pip", "Hex"];
 export const suits = ["♠", "♥", "♣", "♦"];
 export const suitNames = ["spades", "hearts", "clubs", "diamonds"];
@@ -31,6 +24,9 @@ export const cardText = (c) => `${ranks[c % 13]}${suits[Math.floor(c / 13)]}`;
 export const fullCard = (c) =>
   `${{ A: "Ace", J: "Jack", Q: "Queen", K: "King" }[ranks[c % 13]] || ranks[c % 13]} of ${suitNames[Math.floor(c / 13)]}`;
 
+// A caller broke a table rule. The message is user-facing copy, so routes map this type to 409.
+export class RuleViolation extends Error {}
+
 export function rulesFor(input = {}) {
   const integer = (v, min, max, fallback) =>
     Number.isInteger(v) && v >= min && v <= max ? v : fallback;
@@ -39,27 +35,12 @@ export function rulesFor(input = {}) {
     lives: integer(input.lives, 1, 6, 4),
     botStyle: input.botStyle === "reader" ? "reader" : "arcade",
     payout: input.payout === "highest" ? "highest" : "lowest",
-    triples: false,
     tieSafe: input.tieSafe !== false,
-    failedKnock: 1,
-    freeRide: false,
   };
 }
 
-export function handValue(hand, rules = defaults) {
-  const sums = [0, 0, 0, 0];
-  for (const c of hand) {
-    const rank = c % 13;
-    sums[Math.floor(c / 13)] += rank === 0 ? 11 : Math.min(rank + 1, 10);
-  }
-  if (
-    rules.triples &&
-    hand.length === 3 &&
-    hand.every((c) => c % 13 === hand[0] % 13)
-  )
-    return { score: 30.5, suit: -1 };
-  const score = Math.max(...sums);
-  return { score, suit: sums.indexOf(score) };
+export function handValue(hand) {
+  return scoreHand(hand);
 }
 
 // A shuffle function can be injected for replayable tests. A real table uses crypto entropy.
@@ -85,7 +66,7 @@ export function newTable(
     id: i,
     name: names[i] || crew[i],
     human: humanSeats.includes(i),
-    lives: rules.lives + Number(rules.freeRide),
+    lives: rules.lives,
     hand: [],
   }));
   const table = {
@@ -103,7 +84,7 @@ function nextSeat(table, id, ids = table.roundSeats) {
     const candidate = (id + offset) % table.seats.length;
     if (ids.includes(candidate)) return candidate;
   }
-  throw new Error("The table has no active seat.");
+  throw new RuleViolation("The table has no active seat.");
 }
 
 function log(table, seat, kind, card = null, source = null) {
@@ -112,9 +93,9 @@ function log(table, seat, kind, card = null, source = null) {
 
 export function deal(table, random) {
   if (table.round && table.phase !== "end")
-    throw new Error("Finish this round before dealing.");
+    throw new RuleViolation("Finish this round before dealing.");
   const active = table.seats.filter((p) => p.lives > 0).map((p) => p.id);
-  if (active.length < 2) throw new Error("The match has a winner.");
+  if (active.length < 2) throw new RuleViolation("The match has a winner.");
   if (table.round) table.dealer = nextSeat(table, table.dealer, active);
   table.round++;
   table.roundSeats = active;
@@ -140,44 +121,28 @@ export function deal(table, random) {
   table.discard.push(table.openingDiscard);
   log(table, null, "deal");
   const blitz = active.filter(
-    (i) => handValue(table.seats[i].hand, table.rules).score === 31,
+    (i) => handValue(table.seats[i].hand).score === 31,
   );
   if (blitz.length) finish(table, "blitz", blitz);
   return table;
 }
 
 function finish(table, kind, blitz = []) {
-  const ids = table.roundSeats,
-    losses = table.seats.map(() => 0);
+  const ids = table.roundSeats;
   const scores = table.seats.map((p) =>
-    ids.includes(p.id) ? handValue(p.hand, table.rules).score : null,
+    ids.includes(p.id) ? handValue(p.hand).score : null,
   );
-  const high = Math.max(...ids.map((i) => scores[i]));
-  const leaders =
-    kind === "blitz" ? blitz : ids.filter((i) => scores[i] === high);
   const before = table.seats.map((p) => p.lives);
-  if (kind === "blitz" || table.rules.payout === "highest") {
-    for (const i of ids) losses[i] = Number(!leaders.includes(i));
-  } else {
-    const low = Math.min(...ids.map((i) => scores[i]));
-    const tied = ids.filter((i) => scores[i] === low);
-    let payers = tied;
-    if (tied.length > 1 && tied.includes(table.knocker)) {
-      // With a knocker in a bottom tie, the table selects which side of the tie pays.
-      payers = table.rules.tieSafe
-        ? tied.filter((i) => i !== table.knocker)
-        : [table.knocker];
-    }
-    for (const i of payers) losses[i] = 1;
-  }
-  const replay =
-    ids.every((i) => losses[i] === 0) ||
-    ids.every((i) => losses[i] >= before[i]);
-  const paid = losses.map((v, i) => (replay ? 0 : Math.min(v, before[i])));
+  const { leaders, paid, replay, winner } = settleRound({
+    scores,
+    lives: before,
+    knocker: table.knocker,
+    blitz,
+    rules: table.rules,
+  });
   table.seats.forEach((p, i) => {
     p.lives -= paid[i];
   });
-  const survivors = table.seats.filter((p) => p.lives > 0);
   table.phase = "end";
   table.drawn = null;
   table.drawSource = null;
@@ -189,7 +154,7 @@ function finish(table, kind, blitz = []) {
     paid,
     before,
     replay,
-    winner: survivors.length === 1 ? survivors[0].id : null,
+    winner,
   };
   log(
     table,
@@ -200,21 +165,21 @@ function finish(table, kind, blitz = []) {
 
 export function act(table, seat, action, card = null) {
   if (table.phase === "end" || table.turn !== seat)
-    throw new Error("Wait for your turn.");
+    throw new RuleViolation("Wait for your turn.");
   const player = table.seats[seat];
   if (table.phase === "draw") {
     if (action === "knock") {
       if (table.knocker != null)
-        throw new Error("Someone has already knocked.");
+        throw new RuleViolation("Someone has already knocked.");
       table.knocker = seat;
       log(table, seat, "knock");
       table.turn = nextSeat(table, seat);
       return table;
     }
     if (action !== "stock" && action !== "discard")
-      throw new Error("Choose the stock or discard pile.");
+      throw new RuleViolation("Choose the stock or discard pile.");
     const pile = action === "stock" ? table.stock : table.discard;
-    if (!pile.length) throw new Error("That pile is empty.");
+    if (!pile.length) throw new RuleViolation("That pile is empty.");
     table.drawn = pile.pop();
     table.drawSource = action;
     log(
@@ -232,18 +197,20 @@ export function act(table, seat, action, card = null) {
     !Number.isInteger(card) ||
     !player.hand.includes(card)
   )
-    throw new Error("Select one card from your hand to discard.");
+    throw new RuleViolation("Select one card from your hand to discard.");
   if (table.drawSource === "discard" && table.drawn === card)
-    throw new Error("Keep the card you just took from the discard pile.");
+    throw new RuleViolation("Keep the card you just took from the discard pile.");
   player.hand.splice(player.hand.indexOf(card), 1);
   table.discard.push(card);
   const event = { seat, source: table.drawSource, discard: card };
   if (table.drawSource === "discard") event.picked = table.drawn;
+  // Every events push needs a matching log row: events feed coach inference, log is UI narration.
   table.events.push(event);
+  // Keep this log row in step with the events push above.
   log(table, seat, "throw", card, table.drawSource);
   table.drawn = null;
   table.drawSource = null;
-  if (handValue(player.hand, table.rules).score === 31) {
+  if (handValue(player.hand).score === 31) {
     finish(table, "blitz", [seat]);
     return table;
   }

@@ -21,8 +21,6 @@ for (const entry of [
         lives: [4, 4, 4, 4],
         rules: {
           payout: "lowest",
-          triples: false,
-          failedKnock: 1,
           tieSafe: true,
         },
       },

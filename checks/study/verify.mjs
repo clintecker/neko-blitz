@@ -26,29 +26,21 @@ function shuffle(rng) {
 }
 const rules = {
   payout: process.argv[3] ?? "lowest",
-  triples: false,
   tieSafe: true,
-  failedKnock: 1,
 };
-for (const triples of [false, true]) {
-  let count = 0;
-  for (let c = 2; c < 52; c++)
-    for (let b = 1; b < c; b++)
-      for (let a = 0; a < b; a++) {
-        const hand = [a, b, c],
-          suit = [0, 0, 0, 0];
-        for (const v of hand)
-          suit[Math.floor(v / 13)] +=
-            v % 13 === 0 ? 11 : Math.min(10, (v % 13) + 1);
-        const legacyTriple = triples && a % 13 === b % 13 && b % 13 === c % 13;
-        assert.equal(
-          score(hand, { ...rules, triples }),
-          legacyTriple ? 30.5 : Math.max(...suit),
-        );
-        count++;
-      }
-  assert.equal(count, 22100);
-}
+let count = 0;
+for (let c = 2; c < 52; c++)
+  for (let b = 1; b < c; b++)
+    for (let a = 0; a < b; a++) {
+      const hand = [a, b, c],
+        suit = [0, 0, 0, 0];
+      for (const v of hand)
+        suit[Math.floor(v / 13)] +=
+          v % 13 === 0 ? 11 : Math.min(10, (v % 13) + 1);
+      assert.equal(score(hand), Math.max(...suit));
+      count++;
+    }
+assert.equal(count, 22100);
 for (const n of [2, 3, 4]) {
   assert.ok(Math.abs(matchEquity(Array(n).fill(4), rules) - 1 / n) < 1e-12);
   const active = Array.from({ length: n }, (_, i) => i);

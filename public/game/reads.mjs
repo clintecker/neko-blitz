@@ -1,4 +1,6 @@
 // Facts come directly from public transfers. Probabilistic suit reads are supplied by the coach.
+import { suitOf } from "./rules.mjs";
+
 export function observed(v) {
   const facts = new Map(
     v.active
@@ -20,13 +22,13 @@ export function observed(v) {
     faceUp = e.discard;
     if (!f) continue;
     if (e.source === "stock" && Number.isInteger(offered))
-      f.passes[Math.floor(offered / 13)]++;
+      f.passes[suitOf(offered)]++;
     if (e.source === "discard" && Number.isInteger(e.picked)) {
       f.known.add(e.picked);
-      f.picks[Math.floor(e.picked / 13)]++;
+      f.picks[suitOf(e.picked)]++;
     }
     f.known.delete(e.discard);
-    f.drops[Math.floor(e.discard / 13)]++;
+    f.drops[suitOf(e.discard)]++;
   }
   if (
     v.phase === "throw" &&
@@ -37,7 +39,7 @@ export function observed(v) {
     const f = facts.get(v.turn);
     if (f) {
       f.known.add(v.drawn);
-      f.picks[Math.floor(v.drawn / 13)]++;
+      f.picks[suitOf(v.drawn)]++;
     }
   }
   if (
@@ -46,7 +48,7 @@ export function observed(v) {
     Number.isInteger(faceUp)
   ) {
     const f = facts.get(v.turn);
-    if (f) f.passes[Math.floor(faceUp / 13)]++;
+    if (f) f.passes[suitOf(faceUp)]++;
   }
   return facts;
 }

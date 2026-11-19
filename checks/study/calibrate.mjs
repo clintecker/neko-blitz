@@ -20,7 +20,7 @@ function round(n, rules, rand) {
   const hands = Array.from({ length: n }, (_, i) =>
     deck.slice(3 * i, 3 * i + 3),
   );
-  const initialBlitzes = hands.filter((h) => score(h, rules) === 31).length;
+  const initialBlitzes = hands.filter((h) => score(h) === 31).length;
   if (initialBlitzes) return n - initialBlitzes;
   let pos = 3 * n,
     top = deck[pos++],
@@ -47,14 +47,14 @@ function round(n, rules, rand) {
       const idx = four.indexOf(put);
       if (idx !== 3) hand[idx] = picked;
       top = put;
-      if (score(hand, rules) === 31) return n - 1;
+      if (score(hand) === 31) return n - 1;
       if (pos === 52) break;
     }
     turns[actor]++;
     actor = (actor + 1) % n;
     if (actor === knocker) break;
   }
-  const scores = hands.map((h) => score(h, rules)),
+  const scores = hands.map((h) => score(h)),
     low = Math.min(...scores);
   if (rules.payout === "highest") {
     const high = Math.max(...scores);
@@ -62,27 +62,21 @@ function round(n, rules, rand) {
   }
   const lowCount = scores.filter((s) => s === low).length;
   if (knocker >= 0 && scores[knocker] === low) {
-    if (lowCount === 1 || !rules.tieSafe)
-      return rules.failedKnock === 2 ? "double" : 1;
+    // A failed knock costs the knocker one token, or every other low seat one.
+    if (lowCount === 1 || !rules.tieSafe) return 1;
     return lowCount - 1;
   }
   return lowCount;
 }
 const output = {};
 const variants = [];
-for (const triples of [false, true]) {
-  for (const tieSafe of [false, true])
-    for (const failedKnock of [1, 2])
-      variants.push({ payout: "lowest", triples, tieSafe, failedKnock });
-  variants.push({ payout: "highest", triples, tieSafe: true, failedKnock: 1 });
-}
+for (const tieSafe of [false, true])
+  variants.push({ payout: "lowest", tieSafe });
+variants.push({ payout: "highest", tieSafe: true });
 for (const rules of variants) {
   if (process.argv[3] && rules.payout !== process.argv[3]) continue;
-  const { triples, tieSafe, failedKnock } = rules;
   const tag =
-    rules.payout === "highest"
-      ? "H" + Number(triples)
-      : [+triples, +tieSafe, failedKnock].join("");
+    rules.payout === "highest" ? "H0" : "0" + Number(rules.tieSafe) + "1";
   output[tag] = {};
   for (const n of [2, 3, 4]) {
     const freq = {
@@ -90,13 +84,11 @@ for (const rules of variants) {
       ...Object.fromEntries(Array.from({ length: n }, (_, i) => [i + 1, 0])),
     };
     const r = random(
-      238931 +
-        (rules.payout === "highest" ? 500 + Number(triples) : Number(tag)) * 7 +
-        n,
+      238931 + (rules.payout === "highest" ? 500 : Number(tag)) * 7 + n,
     );
     for (let i = 0; i < per; i++) {
       const loss = round(n, rules, r);
-      if (loss > 0 || loss === "double") freq[loss]++;
+      if (loss > 0) freq[loss]++;
       // A round that charges nobody returns to the same life ledger.
     }
     output[tag][n] = freq;

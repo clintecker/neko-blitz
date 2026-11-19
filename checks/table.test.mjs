@@ -19,13 +19,8 @@ import {
 } from "../public/game/coach.mjs";
 
 import { playBotStep } from "../public/game/arcade-bots.mjs";
+import { seeded } from "./lib/rng.mjs";
 
-function rng(seed) {
-  return () => {
-    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
-    return seed / 4294967296;
-  };
-}
 // Deterministic hands make the difference between highest-pays and lowest-pays visible.
 function fixed(hands, stock, payout = "highest") {
   const n = hands.length;
@@ -33,7 +28,7 @@ function fixed(hands, stock, payout = "highest") {
     { players: n, payout },
     Array.from({ length: n }, (_, i) => i),
     {},
-    rng(7),
+    seeded(7),
   );
   const used = new Set([...hands.flat(), ...stock]);
   const rest = Array.from({ length: 52 }, (_, i) => i).filter(
@@ -65,7 +60,7 @@ test("all 22,100 hands score identically in the coach and at the table", () => {
   for (let c = 2; c < 52; c++)
     for (let b = 1; b < c; b++)
       for (let a = 0; a < b; a++)
-        assert.equal(handValue([a, b, c]).score, score([a, b, c], defaults));
+        assert.equal(handValue([a, b, c]).score, score([a, b, c]));
 });
 test("only tied leaders stay safe, with no extra charge for a failed knock", () => {
   // 25,25,19,14. Seat 2 knocks. The other seats discard their fresh stock card.
@@ -103,7 +98,7 @@ test("tied top knocker and all-table ties pay zero", () => {
   act(t, 1, "throw", t.drawn);
   assert.deepEqual(t.result.paid, [0, 0]);
   assert.equal(t.result.replay, true);
-  deal(t, rng(11));
+  deal(t, seeded(11));
   assert.equal(t.round, 2);
 });
 test("face-up blitz trumps a pending knock and the card taken cannot be thrown back", () => {
@@ -176,7 +171,7 @@ test("the live coach proves the face-up blitz using public input", () => {
 test("complete matches conserve all cards, cap token losses, and finish with one survivor", () => {
   for (const n of [2, 3, 4])
     for (let m = 0; m < 55; m++) {
-      const random = rng(711 * n + m),
+      const random = seeded(711 * n + m),
         t = newTable(
           { players: n, lives: 4, payout: "highest" },
           [],
@@ -323,7 +318,7 @@ test("a table-reading bot protects the same 20 by withholding the king its neigh
     act(t, 0, "stock");
     assert.equal(playBotStep(t), true);
     assert.equal(t.discard.at(-1), safe);
-    assert.equal(handValue(t.seats[0].hand, t.rules).score, 20);
+    assert.equal(handValue(t.seats[0].hand).score, 20);
   }
 });
 
@@ -331,7 +326,7 @@ test("both bot styles complete lowest-only matches with conserved cards and a si
   for (const botStyle of ["arcade", "reader"])
     for (const players of [2, 3, 4]) {
       for (let seed = 1; seed <= 10; seed++) {
-        const random = rng(seed * 301 + players);
+        const random = seeded(seed * 301 + players);
         const table = newTable({ players, botStyle }, [], {}, random);
         for (let i = 0; i < 2400 && table.result?.winner == null; i++) {
           if (table.phase === "end") {
