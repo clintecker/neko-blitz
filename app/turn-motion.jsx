@@ -2,11 +2,13 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Hand, Layers, SquareStack, Zap } from "lucide-react";
 import { Back, Card, seatName } from "./pieces";
+import { moveKinds, moveCopy } from "./moves.js";
 import { cardText } from "../public/game/table.mjs";
 
 const FLIGHT = 610,
   HOLD = 310;
-const supported = new Set(["stock", "take", "throw", "knock"]);
+const supported = new Set(moveKinds);
+const moveIcons = { stock: Layers, take: Hand, throw: SquareStack, knock: Zap };
 
 // A room poll may include both halves of somebody's turn. Queue public log entries
 // so both seats see source → hand, then hand → discard, in the same order.
@@ -103,30 +105,11 @@ export function useTurnMotion(view, room) {
 export function MoveCaption({ v, frame }) {
   const cue = frame.cue,
     actor = cue ? seatName(v, cue.seat) : "",
-    self = cue?.seat === v.self;
-  let message = "Opening discard",
-    detail = cardText(v.openingDiscard),
-    Icon = SquareStack;
-  if (cue?.kind === "stock") {
-    Icon = Layers;
-    message = `${actor} ${self ? "draw" : "draws"} from stock`;
-    detail = "Face down";
-  }
-  if (cue?.kind === "take") {
-    Icon = Hand;
-    message = `${actor} ${self ? "take" : "takes"} ${cardText(cue.card)}`;
-    detail = "From discard";
-  }
-  if (cue?.kind === "throw") {
-    Icon = SquareStack;
-    message = `${actor} ${self ? "discard" : "discards"} ${cardText(cue.card)}`;
-    detail = "From hand";
-  }
-  if (cue?.kind === "knock") {
-    Icon = Zap;
-    message = `${actor} ${self ? "knock" : "knocks"}`;
-    detail = "One last turn";
-  }
+    self = cue?.seat === v.self,
+    copy = cue && moveCopy[cue.kind],
+    message = copy ? copy.text(actor, self, cue.card) : "Opening discard",
+    detail = copy ? copy.detail : cardText(v.openingDiscard),
+    Icon = moveIcons[cue?.kind] || SquareStack;
   return (
     <div
       className="motion-line"

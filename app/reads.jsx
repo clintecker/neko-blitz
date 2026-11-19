@@ -6,12 +6,14 @@ import {
   suits,
   suitNames,
 } from "../public/game/table.mjs";
-import { Modal, Sprite, seatName, percent } from "./pieces";
+import { Modal, Sprite } from "./pieces";
+import { seatName, percent, OBJECTIVE_METRIC } from "./format.js";
+import { turnState } from "./table-state.js";
 
 import { observed, nextAfterSelf } from "../public/game/reads.mjs";
 
 export function ReadChip({ v, advice, open }) {
-  if (!v || v.phase === "end") return null;
+  if (!turnState(v).playing) return null;
   const next = nextAfterSelf(v),
     f = observed(v).get(next),
     cards = f ? [...f.known] : [],
@@ -62,7 +64,7 @@ export function Reads({ v, advice, close }) {
                   ? cards.map(cardText).join(" · ")
                   : "No revealed cards."}
                 {cards.length > 0 &&
-                  ` · At least ${handValue(cards, v.rules).score} points.`}
+                  ` · At least ${handValue(cards).score} points.`}
               </p>
               <div className="evidence-grid">
                 {suits.map((s, i) => (
@@ -104,11 +106,7 @@ export function Reads({ v, advice, close }) {
   );
 }
 export function DiscardRows({ a, v, objective }) {
-  const metric = {
-    match: "matchWinChance",
-    safe: "safeChance",
-    round: "value",
-  }[objective];
+  const metric = OBJECTIVE_METRIC[objective];
   const next =
     a.nextSeat != null && a.candidates.some((c) => c.nextTurnChance > 0)
       ? seatName(v, a.nextSeat)
@@ -137,7 +135,7 @@ export function DiscardRows({ a, v, objective }) {
               >
                 <th>{cardText(c.card)}</th>
                 <td>{c.keptScore}</td>
-                <td>{(c.matchWinChance * 100).toFixed(1)}%</td>
+                <td>{percent(c.matchWinChance, 1)}</td>
                 <td>{percent(c.safeChance)}</td>
                 <td>
                   {c.nextTurnChance > 0 ? percent(c.nextTakeChance) : "—"}

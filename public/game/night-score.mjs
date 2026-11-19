@@ -128,6 +128,9 @@ function leadBed(root, shape, previous, center, random) {
     }
   }
   voicings.sort((a, b) => a.cost - b.cost);
+  // The constraints can reject every candidate. Fall back to the previous
+  // voicing rather than throwing inside the scheduler.
+  if (!voicings.length) return previous;
   const best = voicings[0].cost;
   return weighted(
     voicings.slice(0, 10),

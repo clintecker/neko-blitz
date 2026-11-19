@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { Sparkles } from "lucide-react";
 import { Modal } from "./pieces";
+import { percent } from "./format.js";
 import study from "./study-data.json";
 
 // Flipping only the public pickups reverses the defensive choice with the same four cards.
@@ -113,7 +114,7 @@ export default function Strategy({ rules, close }) {
             {rows.map((r) => (
               <tr key={r.score}>
                 <th>{r.score}</th>
-                <td>{((1 - r.risk) * 100).toFixed(1)}%</td>
+                <td>{percent(1 - r.risk, 1)}</td>
                 <td>{r.knocks} / 32</td>
               </tr>
             ))}

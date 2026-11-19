@@ -30,6 +30,9 @@ import { SoundPanel } from "./sound-panel";
 import { ClubLobby } from "./club-lobby";
 import { LoadingScreen, Practice, Welcome, useLaunch } from "./first-hand";
 import { CardFlight, MoveCaption, useTurnMotion } from "./turn-motion";
+import { seatName, totalLives } from "./format.js";
+import { moveCopy } from "./moves.js";
+import { turnState } from "./table-state.js";
 import {
   Back,
   Card,
@@ -40,7 +43,6 @@ import {
   SheetBack,
   Showdown,
   Sprite,
-  seatName,
 } from "./pieces";
 import {
   Coach,
@@ -78,43 +80,41 @@ function Board({ v: actual, room, act, next, busy, host, play }) {
     };
     act("throw", card);
   };
-  const mine = v.turn === v.self,
-    playing = v.phase !== "end",
-    able = playing && mine && !busy && !frame.active;
-  const drawing = able && v.phase === "draw",
-    throwing = able && v.phase === "throw",
+  const st = turnState(v),
+    mine = st.mine,
+    playing = st.playing,
+    drawing = st.drawing && !busy && !frame.active,
+    throwing = st.throwing && !busy && !frame.active,
     top = visibleTop;
   const peers = Array.from(
     { length: v.seats.length - 1 },
     (_, offset) => v.seats[(v.self + 1 + offset) % v.seats.length],
   );
-  const turn =
-    v.phase === "end"
-      ? "Round complete"
-      : mine
-        ? v.knocker != null
-          ? "Your final turn"
-          : "Your turn"
-        : `${seatName(v, v.turn)}’s turn`;
-  const prompt =
-    v.phase === "end"
-      ? "Hands revealed."
-      : !mine
-        ? v.knocker != null
-          ? "Playing a final turn…"
-          : "Choosing a move…"
-        : v.phase === "throw"
-          ? "Choose a card to discard."
-          : v.knocker != null
-            ? `${seatName(v, v.knocker)} knocked. Take your last draw.`
-            : "Choose a pile or knock.";
+  const turn = !playing
+    ? "Round complete"
+    : mine
+      ? st.finalTurn
+        ? "Your final turn"
+        : "Your turn"
+      : `${seatName(v, v.turn)}’s turn`;
+  const prompt = !playing
+    ? "Hands revealed."
+    : !mine
+      ? st.finalTurn
+        ? "Playing a final turn…"
+        : "Choosing a move…"
+      : v.phase === "throw"
+        ? "Choose a card to discard."
+        : st.finalTurn
+          ? `${seatName(v, v.knocker)} knocked. Take your last draw.`
+          : "Choose a pile or knock.";
   return (
     <>
       <div
         ref={field}
         className={`table-field ${cue ? `move-${cue.kind}` : ""} ${cue && frame.landed ? "move-landed" : ""}`}
         data-playing={playing}
-        data-final={v.knocker != null && playing}
+        data-final={playing && st.finalTurn}
         data-mine={playing && mine}
       >
         <div className="felt" aria-hidden="true">
@@ -190,7 +190,7 @@ function Board({ v: actual, room, act, next, busy, host, play }) {
                 </span>
                 <Hearts
                   n={v.seats[v.self].lives}
-                  total={v.rules.lives + Number(v.rules.freeRide)}
+                  total={totalLives(v.rules)}
                 />
               </div>
               <div
@@ -260,14 +260,7 @@ function Board({ v: actual, room, act, next, busy, host, play }) {
               {turn}
             </span>
             <span>
-              {cue
-                ? {
-                    stock: "Drawing from stock…",
-                    take: "Taking the face-up card…",
-                    throw: "Discarding from hand…",
-                    knock: "Knocked. Final turns begin.",
-                  }[cue.kind]
-                : prompt}
+              {cue ? moveCopy[cue.kind]?.status : prompt}
             </span>
           </div>
           <div className="action-buttons">
@@ -542,9 +535,10 @@ export default function Arcade() {
               )}
             </section>
             {v && <aside className="side">
-              {v && coach}
+              {/* Mounted in the aside only while its sheet is closed; the sheet mounts its own copy. */}
+              {v && modal !== "coach" && coach}
               <ReadChip v={v} advice={advice} open={() => open("reads")} />
-              <Feed view={v} />
+              {v && modal !== "history" && <Feed view={v} />}
               <button
                 className="friends-link"
                 onClick={() => open(packet?.code ? "roominfo" : "friends")}

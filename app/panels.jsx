@@ -14,16 +14,16 @@ import { chooseDiscard } from "../public/game/coach.mjs";
 import {
   fmtScore,
   percent,
-  moveLabels,
-  logLine,
+  signed,
   seatName,
-  Sprite,
-  Modal,
-} from "./pieces";
+  OBJECTIVE_METRIC,
+} from "./format.js";
+import { logLine } from "./log-line.js";
+import { turnState } from "./table-state.js";
+import { moveLabels, Sprite, Modal } from "./pieces";
 
 import { DiscardRows, throwReason } from "./reads";
 
-const signed = (v) => (v > 0 ? "+" : "") + v.toFixed(2);
 function bestThrow(v, planned) {
   if (
     Number.isInteger(planned) &&
@@ -39,15 +39,14 @@ function bestThrow(v, planned) {
   });
 }
 export function Coach({ view: v, advice: a, planned, compare }) {
-  const playing = v && v.phase !== "end",
-    mine = playing && v.turn === v.self,
-    throwing = mine && v.phase === "throw";
+  const st = turnState(v),
+    mine = st.playing && st.mine,
+    throwing = st.throwing;
   const action = mine && !throwing ? a?.action : null;
   let recommendation = "Reading the table…",
-    tip =
-      v?.knocker != null
-        ? "Comparing your two draw options."
-        : "Comparing knock, stock and the open pile.";
+    tip = st.finalTurn
+      ? "Comparing your two draw options."
+      : "Comparing knock, stock and the open pile.";
   if (!v) {
     recommendation = "Waiting for the deal";
     tip = "Your advice appears when the first hand is dealt.";
@@ -204,11 +203,7 @@ export function Feed({ view }) {
   );
 }
 export function Odds({ v, advice: a, close, objective, setObjective }) {
-  const metric = {
-    match: "matchWinChance",
-    safe: "safeChance",
-    round: "value",
-  }[objective];
+  const metric = OBJECTIVE_METRIC[objective];
   return (
     <Modal
       title={
@@ -266,7 +261,7 @@ export function Odds({ v, advice: a, close, objective, setObjective }) {
                     .map(([k, v]) => (
                       <tr className={k === a.action ? "best" : ""} key={k}>
                         <th>{moveLabels[k]}</th>
-                        <td>{(100 * v.matchWinChance).toFixed(1)}%</td>
+                        <td>{percent(v.matchWinChance, 1)}</td>
                         <td>{signed(v.value)}</td>
                         <td>{percent(v.ownLossChance)}</td>
                         <td>{percent(v.blitzChance)}</td>
@@ -299,15 +294,26 @@ export function Odds({ v, advice: a, close, objective, setObjective }) {
             {a.samples.toLocaleString()} sampled deals ·{" "}
             {(a.effectiveSamples ?? a.samples).toLocaleString()} effective after
             weighting public evidence.{" "}
-            {a.exact
-              ? a.action === "throw"
-                ? "The three cards you keep guarantee 31."
-                : "The face-up 31 is guaranteed."
-              : a.confidence === "close"
-                ? "The leading moves are within sampling uncertainty."
-                : a.confidence === "limited"
-                  ? "Few sampled deals fit this history well. Treat this estimate cautiously."
-                  : `The leading move is ahead by ${objective !== "round" ? (a.margin * 100).toFixed(1) + " percentage points" : a.margin.toFixed(2) + " tokens"}.`}
+            {a.exact ? (
+              a.action === "throw" ? (
+                "The three cards you keep guarantee 31."
+              ) : (
+                "The face-up 31 is guaranteed."
+              )
+            ) : a.confidence === "certain" ? (
+              // A forced move: every alternative is illegal, so there is no margin to quote.
+              "Every other move is illegal here."
+            ) : a.confidence === "close" ? (
+              "The leading moves are within sampling uncertainty."
+            ) : a.confidence === "limited" ? (
+              "Few sampled deals fit this history well. Treat this estimate cautiously."
+            ) : (
+              `The leading move is ahead by ${
+                objective !== "round"
+                  ? (a.margin * 100).toFixed(1) + " percentage points"
+                  : a.margin.toFixed(2) + " tokens"
+              }.`
+            )}
           </p>
         </>
       ) : (

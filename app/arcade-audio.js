@@ -40,6 +40,10 @@ export class ArcadeMixer {
     this.epoch = 0;
     this.lanes = { game: 0, ui: 0, preview: 0 };
     this.closed = false;
+    this.timer = null;
+    this.idle = null;
+    this.resuming = null;
+    this.wake = null;
   }
   level() {
     return this.settings.enabled ? (this.settings.volume / 100) ** 1.3 : 0;
@@ -103,10 +107,18 @@ export class ArcadeMixer {
         .catch(() => {
           if (this.context === ctx) this.report("Tap to retry music");
         });
+      // A suspended context never ends its one-sample wake node, so a burst of
+      // gestures would pile nodes up. Keep only the newest one armed; every real
+      // gesture still gets its own resume attempt.
+      this.wake?.disconnect?.();
       const wake = ctx.createBufferSource();
+      this.wake = wake;
       wake.buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
       wake.connect(ctx.destination);
-      wake.onended = () => wake.disconnect();
+      wake.onended = () => {
+        if (this.wake === wake) this.wake = null;
+        wake.disconnect();
+      };
       wake.start();
     }
     return this.resuming;
@@ -131,11 +143,19 @@ export class ArcadeMixer {
     const tick = () => {
       if (this.context.state !== "running" || this.closed || document.hidden)
         return;
-      this.synth.schedule(this.context.currentTime + 0.37);
-      this.publish(this.synth.harmony().label);
+      try {
+        this.synth.schedule(this.context.currentTime + 0.37);
+        this.publish(this.synth.harmony().label);
+      } catch {
+        // A broken scheduler must not spin: stop the clock and ask for a tap,
+        // which is the same recovery every other audio failure offers.
+        this.stopClock();
+        this.report("Tap to resume music");
+      }
     };
-    tick();
+    // Arm the interval first so a throw in the very first tick clears its own timer.
     this.timer = setInterval(tick, 140);
+    tick();
   }
   stopClock() {
     clearInterval(this.timer);
@@ -201,6 +221,8 @@ export class ArcadeMixer {
   restart() {
     // A phone can lose its hardware route while the page is backgrounded.
     // A fresh context is an explicit recovery from the sound settings button.
+    clearTimeout(this.idle);
+    this.idle = null;
     this.quiet();
     const old = this.context;
     if (old) old.onstatechange = null;
@@ -208,11 +230,13 @@ export class ArcadeMixer {
     this.context = null;
     this.synth = null;
     this.resuming = null;
+    this.wake = null;
     if (old && old.state !== "closed") void old.close().catch(() => {});
     this.unlock();
   }
   close() {
     this.closed = true;
+    this.wake = null;
     clearTimeout(this.idle);
     this.quiet();
     this.synth?.close();

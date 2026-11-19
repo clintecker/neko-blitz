@@ -117,6 +117,12 @@ function phrase(ctx, waves, random, strikes, at, out, space, options) {
   const ended = new Promise((done) => {
     resolve = done;
   });
+  // Callers await `ended`, so a phrase carrying no strikes still has to settle.
+  if (!strikes.length) {
+    for (const node of nodes) node.disconnect();
+    resolve();
+    return { ended, cancel() {} };
+  }
   function start(oscillator, from, to) {
     sources.add(oscillator);
     oscillator.onended = () => {

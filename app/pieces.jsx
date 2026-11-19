@@ -1,25 +1,14 @@
 "use client";
 import { createContext, useContext, useEffect, useRef } from "react";
 import { ChevronLeft, X, Trophy, Zap } from "lucide-react";
-import {
-  suits,
-  suitNames,
-  ranks,
-  fullCard,
-  handValue,
-  cardText,
-} from "../public/game/table.mjs";
+import { suits, suitNames, ranks, fullCard } from "../public/game/table.mjs";
+import { bestKeep, fmtScore, seatName, totalLives } from "./format.js";
+
+// Formatting and log prose are pure modules; re-exported for old importers.
+export { percent, signed, seatName, fmtScore, totalLives } from "./format.js";
+export { logLine } from "./log-line.js";
 
 export const sprites = ["card-cat.png", "mochi.webp", "pip.webp", "hex.webp"];
-export const seatName = (v, id) =>
-  id === v.self ? "You" : v.seats[id]?.name || "Player";
-export const fmtScore = (n) => (n === 30.5 ? "30½" : String(n));
-export const percent = (n) =>
-  n > 0 && n < 0.005
-    ? "<1%"
-    : n < 1 && n > 0.995
-      ? ">99%"
-      : `${Math.round(n * 100)}%`;
 export const moveLabels = {
   stock: "Draw stock",
   discard: "Take discard",
@@ -184,10 +173,7 @@ export function Seat({ view, p }) {
       </span>
       <span className="seat-info">
         <b>{seatName(view, p.id)}</b>
-        <Hearts
-          n={p.lives}
-          total={view.rules.lives + Number(view.rules.freeRide)}
-        />
+        <Hearts n={p.lives} total={totalLives(view.rules)} />
         {dead ? (
           <span className="seat-mark">Out</span>
         ) : view.phase === "end" ? (
@@ -208,19 +194,8 @@ export function Seat({ view, p }) {
   );
 }
 export function HandScore({ view }) {
-  let best = handValue(view.hand, view.rules);
-  if (view.hand.length === 4) {
-    const choices = view.hand
-      .filter((c) => view.drawSource !== "discard" || view.drawn !== c)
-      .map((c) =>
-        handValue(
-          view.hand.filter((x) => x !== c),
-          view.rules,
-        ),
-      );
-    best = choices.reduce((a, b) => (a.score >= b.score ? a : b));
-  }
   if (!view.hand.length) return null;
+  const best = bestKeep(view.hand, view.drawn, view.drawSource, view.rules);
   return (
     <span className="score-block">
       <small>{view.hand.length === 4 ? "Best keep" : "Hand score"}</small>
@@ -294,22 +269,6 @@ export function Modal({ title, children, onClose, wide = false }) {
       {children}
     </dialog>
   );
-}
-export function logLine(view, e) {
-  const who = e.seat == null ? "" : seatName(view, e.seat);
-  if (e.kind === "stock") return `${who} drew a face-down stock card.`;
-  if (e.kind === "take")
-    return `${who} took ${cardText(e.card)} from the discard pile.`;
-  if (e.kind === "throw")
-    return `${who} discarded ${cardText(e.card)} from hand.`;
-  if (e.kind === "deal")
-    return `Round ${view.round} dealt. ${cardText(view.openingDiscard)} opens the pile.`;
-  if (e.kind === "knock") return `${who} knocked. One last turn each.`;
-  if (e.kind === "blitz") return `${who} hit 31!`;
-  if (e.kind === "showdown") return "Cards up. The round is over.";
-  if (e.kind === "play")
-    return `${who} ${e.source === "stock" ? "drew stock" : "took the discard"} and discarded ${cardText(e.card)}.`;
-  return `${e.seat === view.self ? "Your" : who + "’s"} turn.`;
 }
 export function Showdown({ view, onNext, busy, host = true }) {
   const r = view.result,
