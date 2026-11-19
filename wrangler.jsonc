@@ -8,8 +8,7 @@
     {
       "binding": "DB",
       "database_name": "neko-blitz",
-      // The placeholder works with the local emulator. Set your own ID to deploy.
-      "database_id": "00000000-0000-4000-8000-000000000000",
+      "database_id": "a366e489-be07-4c81-ac37-ab7ee2dffd52",
       "migrations_dir": "migrations"
     }
   ]

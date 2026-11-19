@@ -6,7 +6,9 @@ BLITZ is a React application served by a Vinext Worker. Solo state stays in the 
 
 `public/game/table.mjs` owns the card representation, shuffle, legal actions, scoring, round resolution, and `projectTable()`. IDs 0–51 represent A through K in spades, hearts, clubs, and diamonds. A table stores all private cards. A projected view exposes the requesting player's hand and public game information.
 
-`app/use-table.js` owns persistence, solo bot scheduling, the room session, polling, and operation serialization. A solo match is saved in `localStorage`. A room token is held in `sessionStorage`. Ending a solo game clears the saved table and persists the lobby state. Generation checks prevent a stale restore request from reviving an abandoned session.
+`app/use-table.js` composes the table from focused modules. `table-store.js` owns the storage keys and the read and save helpers. `room-api.js` is the stateless client for `/api/table`. `room-session.js` owns the seat session, boot restore, polling, operation serialization, and entering or leaving a room. `solo-opponent.js` owns the solo bot timer. `use-advice.js` owns the reads-sheet analysis request. The composition hook creates the solo table, seat, live snapshot, and generation refs once and passes them to those hooks rather than letting each keep its own copy.
+
+A solo match is saved in `localStorage`. A room token is held in `sessionStorage`. Ending a solo game clears the saved table and persists the lobby state. Generation checks prevent a stale restore request from reviving an abandoned session.
 
 ## Online rooms
 

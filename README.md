@@ -11,7 +11,7 @@ A neon Thirty-One card game with a lucky-cat dealer, four lives, online friends,
 - Play solo against bots or invite friends to a room. Bots fill empty seats.
 - Score the best single suit in your three-card hand. A suited 31 ends the round immediately.
 - Knock before drawing, including on your opening turn. Each other active player gets one final turn.
-- Start with four lives. Under the default house rules, only the lowest hand pays a token. A failed knock costs one token, and triples have no bonus.
+- Start with four lives. Under the default house rules, only the lowest hand pays a token; a failed knock costs one token.
 - Use the coach to compare knocking, drawing, and discarding using public information. Table-reading bots infer likely suits from visible pickups and throws.
 - Learn through a skippable practice hand, then play in a layout built for phones, tablets, and desktops.
 - Enable **Music** in the lobby for Glass Canopy, a procedural Web Audio score with shifting chords, drones, and glassy synth effects.
