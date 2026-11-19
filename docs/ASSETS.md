@@ -31,10 +31,10 @@ Neko Pixel is the project-specific pixel font. Its adjacent `Neko-Pixel-LICENSE.
 
 The current score is generated at runtime by `public/game/night-score.mjs` and `night-synth.mjs`. It uses Web Audio oscillators and effects, with no external music service or sampled commercial recordings. The source is covered by the project's MIT license.
 
-`public/audio/` contains the original synthesized cue WAVs and earlier loop exports. `scripts/render_blitz_audio.py` regenerates that older sample set with NumPy, SciPy, and ffmpeg. Its optional Python dependencies are pinned in `requirements-audio.txt`. The live Glass Canopy score has its own source and is not reproduced by that older sample renderer.
+All current music and effects are generated from the score and instrument sources above. The source package needs no sampled-audio directory or separate rendering toolchain.
 
 ## Third-party material
 
-Lucide supplies the interface icons. The installed package retains its upstream license, and a copy is included in `vendor/lucide-LICENSE.txt`. Vinext's license is copied to `vendor/vinext-LICENSE.txt`. Existing shadcn and Sites plugin notices remain beside their vendored files.
+Lucide supplies the interface icons. The installed package retains its upstream license, and a copy is included in `vendor/lucide-LICENSE.txt`. Vinext's license is copied to `vendor/vinext-LICENSE.txt`. The installed dependency packages carry their additional upstream notices.
 
 See [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md) for the complete attribution map. Every newly added third-party asset should have a source and compatible license recorded before it is committed.

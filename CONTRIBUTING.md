@@ -14,7 +14,9 @@ Run these commands before submitting a pull request.
 
 ```sh
 npm test
+npm run typecheck
 npm run build
+npm run test:worker
 ```
 
 For UI changes, check a 320-pixel-wide phone, a larger portrait phone, landscape, and tablet-sized viewports. Test the actual tap targets, keyboard focus, text enlargement, and reduced-motion preference. Include screenshots for visible changes. For audio changes, verify mute, music enablement, interrupted playback, and an actual audible output after a gesture.

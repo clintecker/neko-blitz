@@ -17,37 +17,22 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "incremental": true,
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
-    "paths": {
-      "@/*": [
-        "./*"
-      ]
-    },
     "types": [
       "node",
       "@cloudflare/workers-types"
     ]
   },
   "include": [
-    "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts",
-    "**/*.mts"
+    "app/**/*.ts",
+    "app/**/*.tsx",
+    "worker/**/*.ts",
+    "vite.config.ts",
+    "cloudflare-env.d.ts"
   ],
   "exclude": [
     "node_modules",
-    "examples",
     "dist",
     ".vinext",
-    ".wrangler",
-    ".sites-runtime",
-    "outputs",
-    "work"
+    ".wrangler"
   ]
 }

@@ -2,7 +2,7 @@
 
 A neon Thirty-One card game with a lucky-cat dealer, four lives, online friends, opponents that read the table, and a constantly evolving synth soundtrack.
 
-[Play the game](https://neko-blitz-card-club.clintecker.chatgpt.site/) · [Rules](docs/RULES.md) · [Strategy](docs/STRATEGY.md) · [Contributing](CONTRIBUTING.md)
+[Hosted demo](https://neko-blitz-card-club.clintecker.chatgpt.site/) · [Deploy to Cloudflare](docs/DEPLOYMENT.md) · [Rules](docs/RULES.md) · [Strategy](docs/STRATEGY.md) · [Contributing](CONTRIBUTING.md)
 
 ![The neon card-club lobby](docs/images/lobby.jpg)
 
@@ -19,12 +19,11 @@ A neon Thirty-One card game with a lucky-cat dealer, four lives, online friends,
 
 ## Run locally
 
-Extract the source ZIP and open its `neko-blitz` directory. Use Node.js 24 and npm. Python is optional and only needed to regenerate the legacy audio samples.
+Extract the source ZIP and open its `neko-blitz` directory. Use Node.js 24 and npm.
 
 ```sh
 cd neko-blitz
 npm run install:ci
-npm run build
 npm run db:migrate:local
 npm run dev
 ```
@@ -33,11 +32,25 @@ Open the loopback URL printed by the dev server. Solo play uses browser storage.
 
 ```sh
 npm test
+npm run typecheck
 npm run build
 npm start
 ```
 
-`npm start` previews the built Worker locally. GitHub Actions runs the test suite and production build for pushes and pull requests. The default execution profile in a clean clone is portable. The original hosted game's project identifier and local runtime state are excluded from this public export.
+`npm start` previews the built Worker locally. GitHub Actions runs tests, TypeScript checks, and a production build for pushes and pull requests. The standalone configuration is in `wrangler.jsonc`.
+
+## Deploy your canonical site
+
+Cloudflare Workers + D1 is the primary deployment target. One Worker serves the game, artwork, fonts, and multiplayer API. D1 persists rooms, while the procedural soundtrack runs in the player's browser.
+
+After creating your D1 database and setting its ID in `wrangler.jsonc`, apply the migrations and publish the full application.
+
+```sh
+npm run db:migrate:remote
+npm run deploy
+```
+
+You can attach a custom domain and use that as the main game URL. Room invitations automatically use the current origin. See the [deployment guide](docs/DEPLOYMENT.md) for account setup, custom domains, and release checks.
 
 ## Project map
 
@@ -49,10 +62,10 @@ npm start
 | `public/game/coach.mjs` | Public-information strategy model |
 | `public/game/reads.mjs`, `arcade-bots.mjs` | Opponent inference and bot policy |
 | `public/game/night-score.mjs`, `night-synth.mjs` | Procedural harmony and Web Audio instruments |
-| `public/art/`, `public/audio/`, `public/fonts/` | Bundled artwork, legacy samples, and font assets |
+| `public/art/`, `public/fonts/` | Game artwork and font assets |
 | `checks/` | Automated regressions and reproducible strategy studies |
-| `drizzle/`, `db/` | D1 room schema and migration |
-| `worker/`, `vite.config.ts`, `scripts/` | Vinext, Cloudflare, and development tooling |
+| `migrations/` | Versioned SQL migrations for the online room table |
+| `worker/`, `vite.config.ts`, `wrangler.jsonc` | Worker entry point and build/runtime configuration |
 
 ## Documentation
 

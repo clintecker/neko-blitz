@@ -45,6 +45,6 @@ Game cues follow the visible motion queue, so card impacts stay synchronized wit
 
 ## Build and hosting
 
-Vite, Vinext, and the Cloudflare plugin build the client bundle and Worker. D1 is declared under the `DB` binding. The root hosting declaration in this public repository contains local binding names and omits the original Site's project identity.
+Vite, Vinext, and the Cloudflare plugin build the client bundle and Worker. D1 is declared under the `DB` binding. `wrangler.jsonc` declares the Worker and its `DB` binding. Numbered SQL migrations in `migrations/` create and evolve the room table. Wrangler tracks their application.
 
-The included starter's connector and optional ChatGPT identity helpers remain available to contributors. Current game-room authorization uses its own seat tokens and does not require those helpers.
+The Worker entry point directly exports Vinext's request handler. Game-room authorization uses seat tokens.

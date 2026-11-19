@@ -2,7 +2,10 @@
 
 ## Unreleased
 
-Future changes will be recorded here.
+- Streamlined the source distribution to the game and its required runtime assets.
+- Replaced inherited database tooling with versioned D1 SQL migrations.
+- Simplified the Worker entry point, dependency set, and development commands.
+- Added complete Cloudflare deployment instructions, a deploy command, custom-domain guidance, and a built-Worker smoke test.
 
 ## 0.1.0 — 2026-11-19
 
