@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   SOUND_PALETTES,
+  SPECTRA,
   TableSynth,
   resolvePalette,
   SCORE_THEMES,
@@ -12,10 +13,14 @@ import { seeded } from "./lib/rng.mjs";
 // threading from TableSynth into the canopy, never the rendered graph.
 const ids = SCORE_THEMES.map((theme) => theme.id);
 const fields = Object.keys(SOUND_PALETTES.alley);
+// Every palette carries the alley field set; effects are opt-in per theme and
+// a palette that omits one builds no node for it at all.
+const effectFields = ["chorus", "detunePairs", "tremolo", "pulse"];
 // The cue voices phrase() can shape: its patch table keys, shared with the
 // score's strike vocabulary.
 const cueVoices = ["bass", "pluck", "reed", "glass"];
-const waves = ["bass", "pad", "reed", "pluck", "glass"];
+// Every name initWaves can build, i.e. every wave a bed or bass may name.
+const waves = Object.keys(SPECTRA);
 
 const differing = (a, b) =>
   fields.filter(
@@ -50,7 +55,13 @@ test("every shipped score theme carries a usable sound palette", () => {
     assert.ok(palette, `${id} has a palette`);
     // Same field set everywhere: a missing field would silently fall back to
     // another theme's instrument, which is the bug this registry prevents.
-    assert.deepEqual(Object.keys(palette).sort(), [...fields].sort(), id);
+    for (const field of fields)
+      assert.ok(field in palette, `${id} carries ${field}`);
+    for (const field of Object.keys(palette))
+      assert.ok(
+        fields.includes(field) || effectFields.includes(field),
+        `${id} ${field} is a base or effect field`,
+      );
     assert.equal(palette.bedVoices.length, 3, `${id} holds three bed voices`);
     for (const [i, voice] of palette.bedVoices.entries()) {
       assert.ok(
@@ -81,6 +92,12 @@ test("every shipped score theme carries a usable sound palette", () => {
       `${id} glint voice ${palette.glintVoice}`,
     );
     assertUnit(id, "glintStrength", palette.glintStrength, 0, 1.5);
+    for (const key of ["min", "max", "base", "shineGain"])
+      assertPositive(id, `glintRate.${key}`, palette.glintRate[key]);
+    assert.ok(
+      palette.glintRate.max > palette.glintRate.min,
+      `${id} glint window`,
+    );
     assertPositive(id, "echo.leftTime", palette.echo.leftTime);
     assertPositive(id, "echo.rightTime", palette.echo.rightTime);
     assertUnit(id, "echo.feedback", palette.echo.feedback, 0, 0.95);
@@ -114,6 +131,7 @@ test("the alley palette is the original instrument, number for number", () => {
     glintVoice: "glass",
     glintStrength: 1,
     glintShelf: { base: -3, shine: 7 },
+    glintRate: { min: 0.7, max: 2.05, base: 0.48, shineGain: 0.71 },
     echo: {
       leftTime: 0.287,
       rightTime: 0.419,
@@ -139,6 +157,65 @@ test("the four palettes give each theme its own timbre", () => {
         `${rest[i]} and ${rest[j]} differ on ${apart}`,
       );
     }
+});
+
+// The identity a listener hears: which spectra are in play, which effects move
+// them, and how fast the heartbeat runs.
+function identity(palette) {
+  const spectra = [
+    palette.bassWave,
+    ...palette.bedVoices.map((voice) => voice.wave),
+  ].sort();
+  const effects = effectFields
+    .filter((field) => field in palette)
+    .map((field) => (field === "pulse" ? `pulse@${palette.pulse.bpm}` : field));
+  return [spectra.join("/"), effects.join("+") || "dry"].join(" ");
+}
+
+test("each theme has its own spectra, effects and heartbeat", () => {
+  const identities = new Map();
+  for (const id of ids) identities.set(identity(SOUND_PALETTES[id]), id);
+  assert.equal(identities.size, ids.length, [...identities]);
+
+  const { alley, vapor, reef, ember } = SOUND_PALETTES;
+  // Alley is the instrument every new field has to be a no-op for.
+  for (const field of effectFields) assert.ok(!(field in alley), field);
+  // Vapor drifts its bed and never thumps.
+  assert.deepEqual(vapor.chorus, { rate: 0.13, depthCents: 7 });
+  assert.ok(!("pulse" in vapor) && !("detunePairs" in vapor));
+  // Reef muddies paired detune under a slow deep throb.
+  assertPositive("reef", "detunePairs", reef.detunePairs);
+  assert.equal(reef.pulse.bpm, 46);
+  assert.equal(reef.pulse.wave, "sub");
+  // Ember flutters its pad and pounds a faster, grittier heartbeat.
+  assert.equal(ember.pulse.bpm, 96);
+  assert.equal(ember.pulse.wave, "grit");
+  assertPositive("ember", "tremolo.rate", ember.tremolo.rate);
+  // Every effect stays inside the ranges the engine assumes.
+  for (const id of ids) {
+    const palette = SOUND_PALETTES[id];
+    if (palette.chorus) {
+      assertPositive(id, "chorus.rate", palette.chorus.rate);
+      assertUnit(id, "chorus.depthCents", palette.chorus.depthCents, 0, 30);
+    }
+    if (palette.tremolo) {
+      assertPositive(id, "tremolo.rate", palette.tremolo.rate);
+      // The pad bus runs at unit gain, so the depth is an absolute excursion.
+      assertUnit(id, "tremolo.depth", palette.tremolo.depth, 0, 0.5);
+    }
+    if (palette.detunePairs)
+      assertUnit(id, "detunePairs", palette.detunePairs, 0, 25);
+    if (palette.pulse) {
+      assertPositive(id, "pulse.bpm", palette.pulse.bpm);
+      assert.ok(waves.includes(palette.pulse.wave), `${id} pulse wave`);
+      assertUnit(id, "pulse.level", palette.pulse.level, 0, 0.2);
+      assertUnit(id, "pulse.tensionLift", palette.pulse.tensionLift, 0, 0.5);
+      assert.ok(
+        Number.isInteger(palette.pulse.offset),
+        `${id} pulse offset`,
+      );
+    }
+  }
 });
 
 test("an unknown theme id plays the alley instrument", () => {
@@ -175,11 +252,19 @@ function stubNode(extra = {}) {
 }
 
 function stubContext() {
-  return {
+  // The node factories also log what they made, so a test can find the nodes a
+  // single scheduler pass added (the heartbeat's thump, for one).
+  const ctx = {
     currentTime: 0.5,
     sampleRate: 48000,
+    oscillators: [],
+    gains: [],
     createPeriodicWave: () => ({}),
-    createGain: () => stubNode({ gain: numberParam() }),
+    createGain: () => {
+      const node = stubNode({ gain: numberParam() });
+      ctx.gains.push(node);
+      return node;
+    },
     createBiquadFilter: () =>
       stubNode({
         type: "lowpass",
@@ -188,8 +273,8 @@ function stubContext() {
         gain: numberParam(),
       }),
     createStereoPanner: () => stubNode({ pan: numberParam() }),
-    createOscillator: () =>
-      stubNode({
+    createOscillator: () => {
+      const node = stubNode({
         frequency: numberParam(),
         detune: numberParam(),
         setPeriodicWave(wave) {
@@ -197,9 +282,13 @@ function stubContext() {
         },
         start() {},
         stop() {},
-      }),
+      });
+      ctx.oscillators.push(node);
+      return node;
+    },
     createDelay: () => stubNode({ delayTime: numberParam() }),
   };
+  return ctx;
 }
 
 const lastTarget = (param) =>
@@ -211,10 +300,10 @@ test("a theme swap rebuilds the canopy on that theme's palette", () => {
   assert.equal(synth.palette, SOUND_PALETTES.reef);
   // A palette only overrides the cue voices it names.
   assert.deepEqual(synth.patches.reed, {
-    attack: 0.024,
-    cutoff: 1900,
+    attack: 0.03,
+    cutoff: 2400,
     sustain: 0.64,
-    tail: 0.19,
+    tail: 0.16,
   });
   // Named fields replace the base patch; the rest of the voice survives.
   assert.deepEqual(synth.patches.bass, {
@@ -242,9 +331,96 @@ test("a theme swap rebuilds the canopy on that theme's palette", () => {
   synth.startAmbient(1);
   assert.notEqual(synth.canopy, reef, "the swap tears down the old canopy");
   assert.equal(synth.canopy.palette, SOUND_PALETTES.vapor);
-  assert.equal(synth.canopy.patches.glass.cutoff, 9600);
+  assert.equal(synth.canopy.patches.glass.cutoff, 7200);
   assert.equal(
     lastTarget(synth.canopy.gate.gain),
     SOUND_PALETTES.vapor.gateRamp,
   );
+});
+
+// The effect layer is the second half of a theme's identity: a chorus drift, a
+// paired detune, a tremolo flutter and a heartbeat. Alley ships none of them,
+// so its graph must stay exactly the size it was before they existed.
+test("the alley canopy builds the original graph and no effect nodes", () => {
+  const ctx = stubContext();
+  const synth = new TableSynth(ctx, {}, { random: seeded(7), theme: "alley" });
+  synth.startAmbient(0.6);
+  const canopy = synth.canopy;
+  // Two width LFOs, the bass, three bed voices, the vine, the six detune and
+  // cutoff LFOs those chorused voices own, four level LFOs and the vine pan.
+  assert.equal(ctx.oscillators.length, 20, "alley oscillator tally");
+  assert.ok(!("pulseAt" in canopy), "no heartbeat is scheduled");
+  assert.ok(!("pulseBus" in canopy), "no heartbeat bus exists");
+  // Alternating detune is reef's mud; alley keeps its jittered detune.
+  assert.ok(
+    canopy.bed.every((voice) => Math.abs(voice.osc.detune.value) <= 3),
+    "alley bed detune stays inside its jitter",
+  );
+});
+
+test("chorus and tremolo retune the bed instead of adding voices", () => {
+  const build = (theme) => {
+    const ctx = stubContext();
+    const synth = new TableSynth(ctx, {}, { random: seeded(7), theme });
+    synth.startAmbient(0.6);
+    return { ctx, canopy: synth.canopy };
+  };
+  const alley = build("alley");
+  // Vapor adds one slow LFO per bed voice, ember one on the pad bus, reef none.
+  assert.equal(build("vapor").ctx.oscillators.length, alley.ctx.oscillators.length + 3);
+  assert.equal(build("ember").ctx.oscillators.length, alley.ctx.oscillators.length + 1);
+  assert.equal(build("reef").ctx.oscillators.length, alley.ctx.oscillators.length);
+  // The bed itself stays three voices deep on every theme.
+  for (const theme of ids) assert.equal(build(theme).canopy.bed.length, 3);
+  // Reef splits its bed off-unison, alternating sides around centre.
+  assert.deepEqual(
+    build("reef").canopy.bed.map((voice) => voice.osc.detune.value),
+    SOUND_PALETTES.reef.bedVoices.map((_, i) =>
+      (i % 2 ? 1 : -1) * SOUND_PALETTES.reef.detunePairs,
+    ),
+  );
+});
+
+test("the heartbeat follows its theme's bpm and lifts under pressure", () => {
+  const build = (theme) => {
+    const ctx = stubContext();
+    const synth = new TableSynth(ctx, {}, { random: seeded(11), theme });
+    synth.startAmbient(0.6);
+    return { ctx, canopy: synth.canopy };
+  };
+  const reef = build("reef");
+  const beat = 60 / SOUND_PALETTES.reef.pulse.bpm;
+  reef.canopy.schedule(0.6 + beat * 2.5);
+  // Two thumps landed, each one beat after the last.
+  assert.ok(
+    Math.abs(reef.canopy.pulseAt - (0.6 + beat * 3)) < 1e-9,
+    `reef pulseAt ${reef.canopy.pulseAt}`,
+  );
+  const peaks = (ctx) =>
+    ctx.gains.flatMap((node) =>
+      node.gain.calls
+        .filter((call) => call[0] === "exponentialRampToValueAtTime")
+        .map((call) => call[1]),
+    );
+  const { level, tensionLift } = SOUND_PALETTES.reef.pulse;
+  assert.ok(peaks(reef.ctx).includes(level), "the quiet thump is scheduled");
+  reef.canopy.schedule(0.6 + beat * 4, true);
+  assert.ok(
+    peaks(reef.ctx).includes(level * (1 + tensionLift)),
+    "pressure lifts the thump",
+  );
+
+  const ember = build("ember");
+  const pound = 60 / SOUND_PALETTES.ember.pulse.bpm;
+  ember.canopy.schedule(0.6 + pound * 1.5);
+  assert.ok(
+    Math.abs(ember.canopy.pulseAt - (0.6 + pound * 2)) < 1e-9,
+    `ember pulseAt ${ember.canopy.pulseAt}`,
+  );
+  // Vapor has no heartbeat: its scheduler never grows the field.
+  const vapor = build("vapor");
+  const before = Object.keys(vapor.canopy).sort();
+  vapor.canopy.schedule(0.6 + 8);
+  assert.deepEqual(Object.keys(vapor.canopy).sort(), before);
+  assert.ok(!("pulseAt" in vapor.canopy));
 });

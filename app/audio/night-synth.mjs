@@ -34,17 +34,29 @@ const limit = (n, low, high) => Math.max(low, Math.min(high, n));
 const floor = 0.0001;
 
 // These spectra give the rack distinct instruments before filtering or FM.
-// The bass's upper harmonics carry the pitch on a phone speaker.
-const partials = {
+// Each harmonic amplitude shape is hand-drawn, so the bed of a theme reads as
+// its own instrument family even before the filters and the room. The registry
+// is exported so the checks can pin the spectra themselves.
+export const SPECTRA = Object.freeze({
   bass: [1, 0.44, 0.27, 0.07, 0.09, 0.02],
   pad: [1, 0.48, 0.26, 0.17, 0.11, 0.07, 0.045, 0.028, 0.022],
   reed: [1, 0.19, 0.37, 0.1, 0.24, 0.045, 0.09, 0.032, 0.04],
   pluck: [1, 0.61, 0.31, 0.24, 0.15, 0.1, 0.082, 0.059, 0.046, 0.033, 0.02],
   glass: [1, 0.29, 0.46, 0.053, 0.18, 0.09, 0.026, 0.075, 0.015, 0.03],
-};
+  // Vapor's bed: breath first, a gentle 2nd/3rd, a fast rolloff and a trace
+  // of odd shimmer so wide chords stay airy instead of turning into an organ.
+  mist: [1, 0.34, 0.14, 0.05, 0.062, 0.03, 0.016, 0.008],
+  // Vapor and reef bass: round and deep. A whisper of 2nd harmonic and a trace
+  // of 3rd keep the pitch readable on a phone speaker.
+  sub: [1, 0.055, 0.03, 0.012, 0.006, 0.003],
+  // Reef's bed: dark and hollow. Weak 2nd, a pronounced 4th/5th, no top.
+  deep: [1, 0.12, 0.08, 0.44, 0.33, 0.06, 0.03, 0.012],
+  // Ember's bed: odd harmonics with a nasal 3rd/5th hump, a clarinet squawk.
+  grit: [1, 0.16, 0.52, 0.1, 0.44, 0.07, 0.26, 0.05, 0.13],
+});
 function initWaves(ctx) {
   return Object.fromEntries(
-    Object.entries(partials).map(([name, spectrum]) => {
+    Object.entries(SPECTRA).map(([name, spectrum]) => {
       const imaginary = Float32Array.from([0, ...spectrum]);
       return [
         name,
@@ -130,11 +142,14 @@ const basePatches = {
 };
 
 // A theme's harmony data does not describe a tone colour, so each theme names
-// its own instrument here: which waves hold the bed, where the filters sit,
-// how the room rings out. The alley numbers are the original instrument, so
-// they reproduce its render exactly; the other palettes are the difference the
-// ear hears between the four tables. Cutoffs marked `open` are the starting
-// values the first frame and the first ribbon glide away from.
+// its own instrument here: which spectra hold the bed, where the filters sit,
+// how the room rings out, and which effects move it. The alley numbers are the
+// original instrument, so they reproduce its render exactly; the other palettes
+// are the difference the ear hears between the four tables. Cutoffs marked
+// `open` are the starting values the first frame and the first ribbon glide
+// away from. `glintRate` is required everywhere (alley carries the original
+// twinkle formula); `chorus`, `detunePairs`, `tremolo` and `pulse` are optional
+// and a palette without them builds no extra node, LFO or thump at all.
 export const SOUND_PALETTES = Object.freeze({
   alley: {
     bedVoices: [
@@ -151,6 +166,7 @@ export const SOUND_PALETTES = Object.freeze({
     glintVoice: "glass",
     glintStrength: 1,
     glintShelf: { base: -3, shine: 7 },
+    glintRate: { min: 0.7, max: 2.05, base: 0.48, shineGain: 0.71 },
     echo: {
       leftTime: 0.287,
       rightTime: 0.419,
@@ -160,15 +176,16 @@ export const SOUND_PALETTES = Object.freeze({
     gateRamp: 0.28,
     cuePatches: {},
   },
-  // Airy and wide: a slower bloom, a long bright room and a bell that sits
-  // above the pad instead of inside it.
+  // Airy and wide: breathy mist bowed by one reed, a round near-sine bass, a
+  // chorus drifting every bed voice, a slower bloom, a long bright room and a
+  // fast twinkle above the pad instead of inside it.
   vapor: {
     bedVoices: [
-      { wave: "pad", level: 0.05, pan: -0.62 },
-      { wave: "glass", level: 0.028, pan: 0.18 },
-      { wave: "pad", level: 0.042, pan: 0.66 },
+      { wave: "mist", level: 0.052, pan: -0.62 },
+      { wave: "reed", level: 0.026, pan: 0.18 },
+      { wave: "mist", level: 0.045, pan: 0.66 },
     ],
-    bassWave: "pad",
+    bassWave: "sub",
     bassCutoff: [640, 980],
     bedCutoff: { base: 1300, shineGain: 1150, jitter: 900 },
     bedSparkle: { base: 1500, gain: 1250, spread: 190 },
@@ -177,6 +194,8 @@ export const SOUND_PALETTES = Object.freeze({
     glintVoice: "glass",
     glintStrength: 1.08,
     glintShelf: { base: 1, shine: 8 },
+    glintRate: { min: 0.35, max: 1.1, base: 0.48, shineGain: 0.71 },
+    chorus: { rate: 0.13, depthCents: 7 },
     echo: {
       leftTime: 0.36,
       rightTime: 0.52,
@@ -188,18 +207,19 @@ export const SOUND_PALETTES = Object.freeze({
       bass: { attack: 0.021, cutoff: 1150, sustain: 0.62, tail: 0.1 },
       pluck: { attack: 0.011, cutoff: 6800, sustain: 0.3, tail: 0.09 },
       reed: { attack: 0.026, cutoff: 4300, sustain: 0.62, tail: 0.16 },
-      glass: { attack: 0.012, cutoff: 9600, sustain: 0.33, tail: 0.32 },
+      // Woodier flute: the bell's cutoff drops and its tail shortens.
+      glass: { attack: 0.012, cutoff: 7200, sustain: 0.33, tail: 0.3 },
     },
   },
-  // Muffled and deep: the bed drops an octave of brightness, the vine hums
-  // inside the pad and glints lose their bell edge for a hollow reed.
+  // Muffled and deep: a hollow deep-spectrum bed in unison, a near-sine bass,
+  // paired detune for mud, and a slow 46bpm sub throb under everything.
   reef: {
     bedVoices: [
-      { wave: "pad", level: 0.068, pan: -0.22 },
-      { wave: "bass", level: 0.045, pan: 0.14 },
-      { wave: "pad", level: 0.058, pan: 0.34 },
+      { wave: "deep", level: 0.064, pan: -0.22 },
+      { wave: "deep", level: 0.042, pan: 0.14 },
+      { wave: "deep", level: 0.055, pan: 0.34 },
     ],
-    bassWave: "bass",
+    bassWave: "sub",
     bassCutoff: [360, 600],
     bedCutoff: { base: 620, shineGain: 700, jitter: 300 },
     bedSparkle: { base: 780, gain: 900, spread: 90 },
@@ -208,6 +228,9 @@ export const SOUND_PALETTES = Object.freeze({
     glintVoice: "reed",
     glintStrength: 0.62,
     glintShelf: { base: -9, shine: 4 },
+    glintRate: { min: 1.4, max: 3.2, base: 0.48, shineGain: 0.71 },
+    detunePairs: 9,
+    pulse: { bpm: 46, wave: "sub", level: 0.05, tensionLift: 0.03, offset: -12 },
     echo: {
       leftTime: 0.42,
       rightTime: 0.61,
@@ -218,19 +241,20 @@ export const SOUND_PALETTES = Object.freeze({
     cuePatches: {
       bass: { cutoff: 820, tail: 0.14 },
       pluck: { attack: 0.012, cutoff: 2600, sustain: 0.3, tail: 0.12 },
-      reed: { attack: 0.024, cutoff: 1900, sustain: 0.64, tail: 0.19 },
+      reed: { attack: 0.03, cutoff: 2400, sustain: 0.64, tail: 0.16 },
       glass: { attack: 0.014, cutoff: 3900, sustain: 0.34, tail: 0.4 },
     },
   },
-  // Close and tense: a fast snap, a short dry room, reeds in the bed and
-  // plucked ticks where the other themes hang a bell.
+  // Close and tense: a gritty odd-harmonic bed against one reed, a tremolo
+  // flutter on the pad bus, a fast urgent twinkle and a 96bpm heartbeat that
+  // pounds harder while a knock bites.
   ember: {
     bedVoices: [
-      { wave: "reed", level: 0.058, pan: -0.5 },
-      { wave: "pluck", level: 0.032, pan: 0.28 },
-      { wave: "reed", level: 0.044, pan: 0.52 },
+      { wave: "grit", level: 0.056, pan: -0.5 },
+      { wave: "reed", level: 0.03, pan: 0.28 },
+      { wave: "grit", level: 0.042, pan: 0.52 },
     ],
-    bassWave: "reed",
+    bassWave: "grit",
     bassCutoff: [600, 980],
     bedCutoff: { base: 1100, shineGain: 1500, jitter: 1500 },
     bedSparkle: { base: 1250, gain: 1900, spread: 240 },
@@ -239,6 +263,9 @@ export const SOUND_PALETTES = Object.freeze({
     glintVoice: "pluck",
     glintStrength: 0.82,
     glintShelf: { base: 2, shine: 5 },
+    glintRate: { min: 0.25, max: 0.8, base: 0.48, shineGain: 0.71 },
+    tremolo: { rate: 4.3, depth: 0.22 },
+    pulse: { bpm: 96, wave: "grit", level: 0.07, tensionLift: 0.06, offset: 0 },
     echo: {
       leftTime: 0.12,
       rightTime: 0.19,
@@ -248,7 +275,7 @@ export const SOUND_PALETTES = Object.freeze({
     gateRamp: 0.12,
     cuePatches: {
       bass: { attack: 0.008, cutoff: 1650, sustain: 0.5, tail: 0.05 },
-      pluck: { attack: 0.003, cutoff: 6200, sustain: 0.19, tail: 0.04 },
+      pluck: { attack: 0.003, cutoff: 6200, sustain: 0.19, tail: 0.045 },
       reed: { attack: 0.01, cutoff: 4200, sustain: 0.5, tail: 0.06 },
       glass: { attack: 0.004, cutoff: 9000, sustain: 0.22, tail: 0.14 },
     },
@@ -411,6 +438,16 @@ class Canopy {
     this.glassBus.gain.value = this.shelf(shine);
     this.glassBus.connect(this.gate);
     this.nodes.push(this.padBus, this.glassBus);
+    // The pad bus runs at unit gain, so a tremolo excursion is a fraction of
+    // full level: ember's 0.22 swings the bed between 0.78 and 1.22 without
+    // ever gating it shut. Palettes without tremolo add no LFO at all.
+    if (palette.tremolo)
+      this.modulate(
+        this.padBus.gain,
+        palette.tremolo.rate,
+        palette.tremolo.depth,
+        at,
+      );
     // Two gently modulated, short delays add width without detuning the bass.
     for (const [side, ms, rate] of [
       [-0.69, 0.016, 0.17],
@@ -436,7 +473,28 @@ class Canopy {
     );
     this.bed = frame.bed.map((note, i) => {
       const { wave, level, pan: position } = palette.bedVoices[i];
-      return this.voice(wave, note, level, position, openCutoffs.bed, at, true);
+      const voice = this.voice(
+        wave,
+        note,
+        level,
+        position,
+        openCutoffs.bed,
+        at,
+        true,
+      );
+      // Both theme effects retune oscillators that already exist: the chorus
+      // drifts them at three slightly different rates and a detune pair splits
+      // them off-unison. Neither adds a bed voice or draws a random value.
+      if (palette.chorus)
+        this.modulate(
+          voice.osc.detune,
+          palette.chorus.rate * (1 + i * 0.13),
+          palette.chorus.depthCents,
+          at,
+        );
+      if (palette.detunePairs)
+        voice.osc.detune.value = (i % 2 ? 1 : -1) * palette.detunePairs;
+      return voice;
     });
     this.vineNote = frame.bed[2];
     this.vine = this.voice(
@@ -450,9 +508,16 @@ class Canopy {
     );
     if (this.vine.speaker.pan)
       this.modulate(this.vine.speaker.pan, 0.041, 0.34, at);
+    // The heartbeat bus exists only for themes that ship a pulse; no other
+    // graph node and no scheduler event is added for the rest.
+    if (palette.pulse) {
+      this.pulseBus = volume(ctx, 1, this.gate);
+      this.nodes.push(this.pulseBus);
+    }
     this.apply(frame, at, true);
     this.vineAt = at + 0.36;
     this.glintAt = at + 0.43;
+    if (palette.pulse) this.pulseAt = at + 60 / palette.pulse.bpm;
   }
   // The high shelf on the glint bus follows the same sparkle curve per theme.
   shelf(amount) {
@@ -574,8 +639,13 @@ class Canopy {
   stars(at) {
     const random = this.random,
       shimmer = this.shine,
-      { glintVoice, glintStrength } = this.palette;
-    this.glintAt = at + range(random, 0.7, 2.05) / (0.48 + 0.71 * shimmer);
+      { glintVoice, glintStrength, glintRate } = this.palette;
+    // The twinkle rhythm is the theme's: reef spacing leaves silence between
+    // glints, vapor sparkles twice as fast, ember ticks. Same single draw.
+    this.glintAt =
+      at +
+      range(random, glintRate.min, glintRate.max) /
+        (glintRate.base + glintRate.shineGain * shimmer);
     if (shimmer <= 0.001) return;
     const candidates = this.frame.stars;
     const note = pick(random, candidates);
@@ -616,19 +686,54 @@ class Canopy {
     this.glints.add(glint);
     glint.ended.then(() => this.glints.delete(glint));
   }
+  // One heartbeat thump of the theme's pulse wave on the frame's bass note.
+  // It draws no random value, which keeps every other theme's event order
+  // identical, and the osc releases itself once the thump has decayed.
+  beat(at, pressure) {
+    const { bpm, wave, level, tensionLift, offset } = this.palette.pulse;
+    const ctx = this.ctx;
+    const osc = ctx.createOscillator(),
+      amp = volume(ctx, floor, this.pulseBus);
+    osc.setPeriodicWave(this.waves[wave]);
+    osc.frequency.value = hz(this.frame.root + offset);
+    osc.connect(amp);
+    const peak = level * (pressure ? 1 + tensionLift : 1);
+    amp.gain.setValueAtTime(floor, at);
+    amp.gain.exponentialRampToValueAtTime(peak, at + 0.004);
+    amp.gain.exponentialRampToValueAtTime(floor, at + 0.19);
+    osc.onended = () => {
+      osc.disconnect();
+      amp.disconnect();
+    };
+    osc.start(at);
+    osc.stop(at + 0.24);
+    this.pulseAt = at + 60 / bpm;
+  }
   schedule(through, pressure) {
     // Audio time drives all attacks. A backgrounded tab or busy worker must
     // never replay a pile of overdue events when the UI thread returns.
     const now = this.ctx.currentTime;
-    for (const field of ["changeAt", "vineAt", "glintAt"]) {
+    // A palette without a pulse never grows this field, so the alley canopy
+    // schedules exactly the three original events.
+    const upcoming = ["changeAt", "vineAt", "glintAt"];
+    if (this.pulseAt !== undefined) upcoming.push("pulseAt");
+    for (const field of upcoming) {
       if (this[field] < now - 0.12) this[field] = now + 0.018;
     }
     for (;;) {
-      const at = Math.min(this.changeAt, this.vineAt, this.glintAt);
+      // First field in list order wins a tie, matching the old else-if chain.
+      let at = Infinity,
+        due;
+      for (const field of upcoming)
+        if (this[field] < at) {
+          at = this[field];
+          due = field;
+        }
       if (at > through) return;
-      if (at === this.changeAt) this.apply(this.score.next(pressure), at);
-      else if (at === this.vineAt) this.ribbon(at);
-      else this.stars(at);
+      if (due === "changeAt") this.apply(this.score.next(pressure), at);
+      else if (due === "vineAt") this.ribbon(at);
+      else if (due === "glintAt") this.stars(at);
+      else this.beat(at, pressure);
     }
   }
   stop() {
