@@ -122,12 +122,152 @@ function echo(ctx, output, leftTime, rightTime, feedback, brightness) {
   };
 }
 
-const patches = {
+const basePatches = {
   bass: { attack: 0.015, cutoff: 1390, sustain: 0.59, tail: 0.08 },
   pluck: { attack: 0.005, cutoff: 5300, sustain: 0.23, tail: 0.06 },
   reed: { attack: 0.016, cutoff: 3550, sustain: 0.58, tail: 0.105 },
   glass: { attack: 0.006, cutoff: 8150, sustain: 0.27, tail: 0.24 },
 };
+
+// A theme's harmony data does not describe a tone colour, so each theme names
+// its own instrument here: which waves hold the bed, where the filters sit,
+// how the room rings out. The alley numbers are the original instrument, so
+// they reproduce its render exactly; the other palettes are the difference the
+// ear hears between the four tables. Cutoffs marked `open` are the starting
+// values the first frame and the first ribbon glide away from.
+export const SOUND_PALETTES = Object.freeze({
+  alley: {
+    bedVoices: [
+      { wave: "pad", level: 0.061, pan: -0.36 },
+      { wave: "reed", level: 0.055, pan: 0.21 },
+      { wave: "pad", level: 0.049, pan: 0.42 },
+    ],
+    bassWave: "bass",
+    bassCutoff: [495, 820],
+    bedCutoff: { base: 950, shineGain: 1050, jitter: 720 },
+    bedSparkle: { base: 1150, gain: 1450, spread: 130 },
+    vineCutoff: { low: 1000, high: 1900, shineGain: 1000 },
+    openCutoffs: { bass: 720, bed: 1800, vine: 1530 },
+    glintVoice: "glass",
+    glintStrength: 1,
+    glintShelf: { base: -3, shine: 7 },
+    echo: {
+      leftTime: 0.287,
+      rightTime: 0.419,
+      feedback: 0.37,
+      brightness: 4950,
+    },
+    gateRamp: 0.28,
+    cuePatches: {},
+  },
+  // Airy and wide: a slower bloom, a long bright room and a bell that sits
+  // above the pad instead of inside it.
+  vapor: {
+    bedVoices: [
+      { wave: "pad", level: 0.05, pan: -0.62 },
+      { wave: "glass", level: 0.028, pan: 0.18 },
+      { wave: "pad", level: 0.042, pan: 0.66 },
+    ],
+    bassWave: "pad",
+    bassCutoff: [640, 980],
+    bedCutoff: { base: 1300, shineGain: 1150, jitter: 900 },
+    bedSparkle: { base: 1500, gain: 1250, spread: 190 },
+    vineCutoff: { low: 1500, high: 2600, shineGain: 1300 },
+    openCutoffs: { bass: 900, bed: 2400, vine: 2200 },
+    glintVoice: "glass",
+    glintStrength: 1.08,
+    glintShelf: { base: 1, shine: 8 },
+    echo: {
+      leftTime: 0.36,
+      rightTime: 0.52,
+      feedback: 0.42,
+      brightness: 6200,
+    },
+    gateRamp: 0.9,
+    cuePatches: {
+      bass: { attack: 0.021, cutoff: 1150, sustain: 0.62, tail: 0.1 },
+      pluck: { attack: 0.011, cutoff: 6800, sustain: 0.3, tail: 0.09 },
+      reed: { attack: 0.026, cutoff: 4300, sustain: 0.62, tail: 0.16 },
+      glass: { attack: 0.012, cutoff: 9600, sustain: 0.33, tail: 0.32 },
+    },
+  },
+  // Muffled and deep: the bed drops an octave of brightness, the vine hums
+  // inside the pad and glints lose their bell edge for a hollow reed.
+  reef: {
+    bedVoices: [
+      { wave: "pad", level: 0.068, pan: -0.22 },
+      { wave: "bass", level: 0.045, pan: 0.14 },
+      { wave: "pad", level: 0.058, pan: 0.34 },
+    ],
+    bassWave: "bass",
+    bassCutoff: [360, 600],
+    bedCutoff: { base: 620, shineGain: 700, jitter: 300 },
+    bedSparkle: { base: 780, gain: 900, spread: 90 },
+    vineCutoff: { low: 420, high: 880, shineGain: 520 },
+    openCutoffs: { bass: 520, bed: 1150, vine: 700 },
+    glintVoice: "reed",
+    glintStrength: 0.62,
+    glintShelf: { base: -9, shine: 4 },
+    echo: {
+      leftTime: 0.42,
+      rightTime: 0.61,
+      feedback: 0.44,
+      brightness: 3200,
+    },
+    gateRamp: 0.62,
+    cuePatches: {
+      bass: { cutoff: 820, tail: 0.14 },
+      pluck: { attack: 0.012, cutoff: 2600, sustain: 0.3, tail: 0.12 },
+      reed: { attack: 0.024, cutoff: 1900, sustain: 0.64, tail: 0.19 },
+      glass: { attack: 0.014, cutoff: 3900, sustain: 0.34, tail: 0.4 },
+    },
+  },
+  // Close and tense: a fast snap, a short dry room, reeds in the bed and
+  // plucked ticks where the other themes hang a bell.
+  ember: {
+    bedVoices: [
+      { wave: "reed", level: 0.058, pan: -0.5 },
+      { wave: "pluck", level: 0.032, pan: 0.28 },
+      { wave: "reed", level: 0.044, pan: 0.52 },
+    ],
+    bassWave: "reed",
+    bassCutoff: [600, 980],
+    bedCutoff: { base: 1100, shineGain: 1500, jitter: 1500 },
+    bedSparkle: { base: 1250, gain: 1900, spread: 240 },
+    vineCutoff: { low: 900, high: 2200, shineGain: 1600 },
+    openCutoffs: { bass: 880, bed: 2000, vine: 1900 },
+    glintVoice: "pluck",
+    glintStrength: 0.82,
+    glintShelf: { base: 2, shine: 5 },
+    echo: {
+      leftTime: 0.12,
+      rightTime: 0.19,
+      feedback: 0.3,
+      brightness: 4400,
+    },
+    gateRamp: 0.12,
+    cuePatches: {
+      bass: { attack: 0.008, cutoff: 1650, sustain: 0.5, tail: 0.05 },
+      pluck: { attack: 0.003, cutoff: 6200, sustain: 0.19, tail: 0.04 },
+      reed: { attack: 0.01, cutoff: 4200, sustain: 0.5, tail: 0.06 },
+      glass: { attack: 0.004, cutoff: 9000, sustain: 0.22, tail: 0.14 },
+    },
+  },
+});
+
+// An unknown id keeps the alley instrument, mirroring resolveThemeId.
+export function resolvePalette(id) {
+  const theme = resolveThemeId(id);
+  return SOUND_PALETTES[theme] ?? SOUND_PALETTES[fallbackTheme];
+}
+
+// A palette names only the cue voices it changes; the rest keep the base patch.
+function soundPatches(palette) {
+  const merged = { ...basePatches };
+  for (const [voice, patch] of Object.entries(palette.cuePatches))
+    merged[voice] = { ...basePatches[voice], ...patch };
+  return merged;
+}
 
 // A phrase owns its entire graph. Ending or replacing an audition releases
 // every scheduled oscillator, including voices that have not sounded yet.
@@ -164,7 +304,7 @@ function phrase(ctx, waves, random, strikes, at, out, space, options) {
     oscillator.stop(to);
   }
   for (const hit of strikes) {
-    const patch = patches[hit.voice],
+    const patch = options.patches[hit.voice],
       time = at + hit.at;
     const tail = options.dry ? 0.032 : patch.tail;
     const stop = time + hit.length + tail;
@@ -242,23 +382,33 @@ function phrase(ctx, waves, random, strikes, at, out, space, options) {
 }
 
 class Canopy {
-  constructor(ctx, output, score, waves, random, at, shine) {
+  constructor(ctx, output, score, waves, random, at, shine, palette, patches) {
     this.ctx = ctx;
     this.waves = waves;
     this.random = random;
     this.shine = shine;
     this.score = score;
+    this.palette = palette;
+    this.patches = patches;
     this.nodes = [];
     this.sources = [];
     this.glints = new Set();
+    const { openCutoffs, echo: room } = palette;
     this.gate = volume(ctx, 0, output);
-    this.gate.gain.setTargetAtTime(1, at, 0.28);
-    this.space = echo(ctx, this.gate, 0.287, 0.419, 0.37, 4950);
+    this.gate.gain.setTargetAtTime(1, at, palette.gateRamp);
+    this.space = echo(
+      ctx,
+      this.gate,
+      room.leftTime,
+      room.rightTime,
+      room.feedback,
+      room.brightness,
+    );
     this.padBus = volume(ctx, 1, this.gate);
     // The sparkle control also moves a shelf on longer bell tails; turning
     // it has an audible effect even between the scheduler’s next glints.
     this.glassBus = filter(ctx, "highshelf", 3100);
-    this.glassBus.gain.value = -3 + 7 * shine;
+    this.glassBus.gain.value = this.shelf(shine);
     this.glassBus.connect(this.gate);
     this.nodes.push(this.padBus, this.glassBus);
     // Two gently modulated, short delays add width without detuning the bass.
@@ -275,25 +425,39 @@ class Canopy {
       this.nodes.push(delay, speaker, mix);
     }
     const frame = score.current();
-    this.bass = this.voice("bass", frame.root, 0.135, 0, 720, at, false);
-    this.bed = frame.bed.map((note, i) =>
-      this.voice(
-        i === 1 ? "reed" : "pad",
-        note,
-        [0.061, 0.055, 0.049][i],
-        [-0.36, 0.21, 0.42][i],
-        1800,
-        at,
-        true,
-      ),
+    this.bass = this.voice(
+      palette.bassWave,
+      frame.root,
+      0.135,
+      0,
+      openCutoffs.bass,
+      at,
+      false,
     );
+    this.bed = frame.bed.map((note, i) => {
+      const { wave, level, pan: position } = palette.bedVoices[i];
+      return this.voice(wave, note, level, position, openCutoffs.bed, at, true);
+    });
     this.vineNote = frame.bed[2];
-    this.vine = this.voice("reed", this.vineNote, 0.003, -0.12, 1530, at, true);
+    this.vine = this.voice(
+      "reed",
+      this.vineNote,
+      0.003,
+      -0.12,
+      openCutoffs.vine,
+      at,
+      true,
+    );
     if (this.vine.speaker.pan)
       this.modulate(this.vine.speaker.pan, 0.041, 0.34, at);
     this.apply(frame, at, true);
     this.vineAt = at + 0.36;
     this.glintAt = at + 0.43;
+  }
+  // The high shelf on the glint bus follows the same sparkle curve per theme.
+  shelf(amount) {
+    const { base, shine } = this.palette.glintShelf;
+    return base + shine * amount;
   }
   modulate(param, rate, depth, at) {
     const mod = lfo(this.ctx, param, rate, depth, at);
@@ -344,8 +508,9 @@ class Canopy {
     if (!initial)
       this.bass.osc.frequency.setTargetAtTime(hz(frame.root), at, 0.32);
     const random = this.random;
+    const { bassCutoff, bedCutoff } = this.palette;
     this.bass.color.frequency.setTargetAtTime(
-      range(random, 495, 820),
+      range(random, bassCutoff[0], bassCutoff[1]),
       at,
       0.82,
     );
@@ -356,7 +521,9 @@ class Canopy {
         0.24 + 0.095 * i,
       );
       voice.color.frequency.setTargetAtTime(
-        950 + this.shine * 1050 + range(random, 0, 720),
+        bedCutoff.base +
+          this.shine * bedCutoff.shineGain +
+          range(random, 0, bedCutoff.jitter),
         at,
         0.91,
       );
@@ -365,10 +532,11 @@ class Canopy {
   setSparkle(amount) {
     this.shine = amount;
     const now = this.ctx.currentTime;
-    this.glassBus.gain.setTargetAtTime(-3 + 7 * amount, now, 0.12);
+    const { base, gain, spread } = this.palette.bedSparkle;
+    this.glassBus.gain.setTargetAtTime(this.shelf(amount), now, 0.12);
     this.bed.forEach((voice, i) =>
       voice.color.frequency.setTargetAtTime(
-        1150 + 1450 * amount + i * 130,
+        base + gain * amount + i * spread,
         now,
         0.33,
       ),
@@ -379,6 +547,7 @@ class Canopy {
   }
   ribbon(at) {
     const random = this.random;
+    const vineCutoff = this.palette.vineCutoff;
     const candidates = [
       ...this.frame.bed.slice(1),
       ...this.frame.stars.map((n) => n - 12),
@@ -393,7 +562,8 @@ class Canopy {
     const voice = this.vine;
     voice.osc.frequency.setTargetAtTime(hz(this.vineNote), at, glide);
     voice.color.frequency.setTargetAtTime(
-      range(random, 1000, 1900) + 1000 * this.shine,
+      range(random, vineCutoff.low, vineCutoff.high) +
+        vineCutoff.shineGain * this.shine,
       at,
       0.29,
     );
@@ -403,7 +573,8 @@ class Canopy {
   }
   stars(at) {
     const random = this.random,
-      shimmer = this.shine;
+      shimmer = this.shine,
+      { glintVoice, glintStrength } = this.palette;
     this.glintAt = at + range(random, 0.7, 2.05) / (0.48 + 0.71 * shimmer);
     if (shimmer <= 0.001) return;
     const candidates = this.frame.stars;
@@ -412,8 +583,8 @@ class Canopy {
       at,
       notes: [pitch],
       length: range(random, 0.32, 0.71),
-      voice: "glass",
-      strength,
+      voice: glintVoice,
+      strength: strength * glintStrength,
     });
     const hits = [noteHit(0, note, 0.34 + 0.38 * shimmer)];
     if (random() < 0.27 + 0.42 * shimmer) {
@@ -439,6 +610,7 @@ class Canopy {
         wet: 0.49,
         pan: range(random, -0.58, 0.58),
         shine: shimmer,
+        patches: this.patches,
       },
     );
     this.glints.add(glint);
@@ -492,6 +664,8 @@ export class TableSynth {
     this.waves = initWaves(ctx);
     this.theme = resolveThemeId(theme);
     this.score = createScore(random, this.theme);
+    this.palette = resolvePalette(this.theme);
+    this.patches = soundPatches(this.palette);
     this.sparkle = sparkle;
     this.tension = false;
     this.knockUntil = 0;
@@ -511,6 +685,8 @@ export class TableSynth {
         this.random,
         at,
         this.sparkle,
+        this.palette,
+        this.patches,
       );
   }
   schedule(through) {
@@ -532,6 +708,8 @@ export class TableSynth {
     const next = resolveThemeId(theme);
     if (next === this.theme) return;
     this.theme = next;
+    this.palette = resolvePalette(next);
+    this.patches = soundPatches(this.palette);
     this.stopAmbient();
     this.score = createScore(this.random, next);
     this.nextQuietChange = this.ctx.currentTime + this.score.current().seconds;
@@ -570,6 +748,7 @@ export class TableSynth {
         pan: limit(position, -0.78, 0.78),
         shine: this.sparkle,
         dry: name === "throw",
+        patches: this.patches,
       },
     );
     this.effects.add(group);

@@ -8,6 +8,7 @@
 - Added complete Cloudflare deployment instructions, a deploy command, custom-domain guidance, and a built-Worker smoke test.
 - Added a daily deal: one date-seeded challenge match, a shareable result card, and a local streak that only this browser records.
 - Added selectable soundtrack themes to the arcade sound panel, with the original score as the default.
+- Gave each soundtrack theme its own cue character: the patch every card action opens on, how hard it bites, and how long it rings.
 
 ## 0.1.0 — 2026-11-19
 

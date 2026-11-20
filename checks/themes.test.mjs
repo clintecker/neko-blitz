@@ -23,6 +23,7 @@ const NOTE_NAMES = [
   "B",
 ];
 const mod12 = (n) => ((n % 12) + 12) % 12;
+const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
 const moves = [
   "ui",
   "deal",
@@ -181,6 +182,110 @@ test("no two themes drift into the same phrase opening", () => {
       );
 });
 
+// The synth only knows four patches (see app/audio/night-synth.mjs), so a cue
+// map that names anything else would silence a card action.
+const PATCH_VOICES = ["bass", "pluck", "reed", "glass"];
+
+test("every theme gives all ten cue names a real patch voice", () => {
+  for (const id of ids) {
+    const { voices, scale, tempo, soft } = THEMES[id].cue;
+    assert.deepEqual(Object.keys(voices).sort(), moves.slice().sort(), id);
+    for (const name of moves) {
+      assert.ok(
+        PATCH_VOICES.includes(voices[name]),
+        `${id}.${name} voice ${voices[name]}`,
+      );
+    }
+    assert.ok(scale > 0, `${id} cue scale ${scale}`);
+    assert.ok(tempo > 0, `${id} cue tempo ${tempo}`);
+    for (const [name, trim] of Object.entries(soft)) {
+      assert.ok(moves.includes(name), `${id} soft ${name}`);
+      assert.ok(trim > 0 && trim <= 1, `${id} soft ${name} ${trim}`);
+    }
+  }
+});
+
+test("the alley cue character is the identity", () => {
+  const { voices, scale, tempo, soft } = THEMES.alley.cue;
+  // An identity multiplier has to stay exactly 1: anything else re-rounds the
+  // recorded strength and length numbers of the default theme.
+  assert.equal(scale, 1);
+  assert.equal(tempo, 1);
+  assert.deepEqual(soft, {});
+  assert.deepEqual(voices, {
+    ui: "pluck",
+    deal: "pluck",
+    stock: "reed",
+    take: "glass",
+    throw: "pluck",
+    knock: "reed",
+    blitz: "reed",
+    safe: "glass",
+    lose: "reed",
+    win: "reed",
+  });
+});
+
+function openVoices(id, seed = 2718) {
+  const score = createScore(seeded(seed), id);
+  for (let i = 0; i < 3; i++) score.next(i === 1);
+  return moves.map((name) => score.cue(name)[0].voice);
+}
+
+test("each theme opens every cue on the voice its map names", () => {
+  for (const id of ids)
+    assert.deepEqual(
+      openVoices(id),
+      moves.map((name) => THEMES[id].cue.voices[name]),
+      id,
+    );
+});
+
+test("the dark, airy and gritty themes re-voice the same actions", () => {
+  const alley = openVoices("alley");
+  // Reef pulls glass down to reed, vapor lifts reeds to glass and keeps only
+  // the UI tick dry, ember snaps every accent onto the pluck.
+  assert.equal(openVoices("reef")[moves.indexOf("take")], "reed");
+  assert.equal(openVoices("vapor")[moves.indexOf("stock")], "glass");
+  assert.equal(openVoices("ember")[moves.indexOf("knock")], "pluck");
+  assert.equal(openVoices("vapor")[moves.indexOf("ui")], "pluck");
+  for (const id of ids) {
+    if (id === "alley") continue;
+    const shifted = openVoices(id).filter((v, i) => v !== alley[i]).length;
+    assert.ok(shifted >= 5, `${id} shifted ${shifted} of ten cues`);
+  }
+});
+
+// Same seed and the same draw order, so only the theme's cue numbers can move a
+// strike's strength and length.
+test("themes scale cue strength and length by their cue numbers", () => {
+  const sample = (id) => {
+    const score = createScore(seeded(5150), id);
+    for (let i = 0; i < 3; i++) score.next(i === 1);
+    return moves.map((name) => score.cue(name)[0]);
+  };
+  const alley = sample("alley");
+  for (const id of ids) {
+    const { scale, tempo, soft } = THEMES[id].cue,
+      own = sample(id);
+    moves.forEach((name, i) => {
+      const strength = clamp(
+        alley[i].strength * scale * (soft[name] ?? 1),
+        0.1,
+        1,
+      );
+      assert.ok(
+        Math.abs(own[i].strength - strength) < 0.002,
+        `${id} ${name} strength ${own[i].strength} vs ${strength}`,
+      );
+      assert.ok(
+        Math.abs(own[i].length - alley[i].length * tempo) < 0.002,
+        `${id} ${name} length ${own[i].length} vs ${alley[i].length * tempo}`,
+      );
+    });
+  }
+});
+
 // A golden sequence pins the alley theme against RNG-order drift: any edit
 // that adds, removes, or reorders a random() draw changes the music but
 // would otherwise pass every invariant here.
@@ -194,4 +299,35 @@ test("the alley theme matches its recorded golden sequence", () => {
     if (i % 4 === 0) replay.push(JSON.stringify(s.cue(moves[i % 10])));
   }
   assert.deepEqual(replay, GOLDEN_ALLEY);
+});
+
+// Cue payloads for three actions over three variants, recorded before a theme
+// could re-voice anything. With GOLDEN_ALLEY this pins the alley strength and
+// length math, including the identity cue multipliers.
+const CUE_BASELINE = {
+  deal: [
+    "[{\"at\":0,\"notes\":[52,55,59],\"length\":0.117,\"voice\":\"pluck\",\"strength\":0.438},{\"at\":0.098,\"notes\":[59,64,76],\"length\":0.137,\"voice\":\"reed\",\"strength\":0.398},{\"at\":0.23,\"notes\":[64,67,88],\"length\":0.205,\"voice\":\"glass\",\"strength\":0.522}]",
+    "[{\"at\":0,\"notes\":[55,59,64],\"length\":0.121,\"voice\":\"pluck\",\"strength\":0.437},{\"at\":0.106,\"notes\":[64,71,81],\"length\":0.141,\"voice\":\"reed\",\"strength\":0.391},{\"at\":0.248,\"notes\":[55,64,81],\"length\":0.212,\"voice\":\"glass\",\"strength\":0.526}]",
+    "[{\"at\":0,\"notes\":[59,64,67],\"length\":0.12,\"voice\":\"pluck\",\"strength\":0.413},{\"at\":0.096,\"notes\":[55,59,64],\"length\":0.14,\"voice\":\"reed\",\"strength\":0.387},{\"at\":0.226,\"notes\":[55,64,79],\"length\":0.21,\"voice\":\"glass\",\"strength\":0.527}]",
+  ],
+  knock: [
+    "[{\"at\":0,\"notes\":[55,61,70,71],\"length\":0.113,\"voice\":\"reed\",\"strength\":0.736},{\"at\":0.179,\"notes\":[55,61,65,66],\"length\":0.098,\"voice\":\"pluck\",\"strength\":0.6},{\"at\":0.405,\"notes\":[55,61,67,68],\"length\":0.201,\"voice\":\"reed\",\"strength\":0.845}]",
+    "[{\"at\":0,\"notes\":[55,61,65,66],\"length\":0.11,\"voice\":\"reed\",\"strength\":0.72},{\"at\":0.186,\"notes\":[55,61,67,68],\"length\":0.096,\"voice\":\"pluck\",\"strength\":0.592},{\"at\":0.422,\"notes\":[55,61,70,71],\"length\":0.196,\"voice\":\"reed\",\"strength\":0.814}]",
+    "[{\"at\":0,\"notes\":[55,61,67,68],\"length\":0.12,\"voice\":\"reed\",\"strength\":0.686},{\"at\":0.17,\"notes\":[55,61,70,71],\"length\":0.104,\"voice\":\"pluck\",\"strength\":0.606},{\"at\":0.385,\"notes\":[55,61,65,66],\"length\":0.213,\"voice\":\"reed\",\"strength\":0.803}]",
+  ],
+  win: [
+    "[{\"at\":0,\"notes\":[59,62,66,67],\"length\":0.306,\"voice\":\"reed\",\"strength\":0.574},{\"at\":0.328,\"notes\":[45,49,55,58],\"length\":0.243,\"voice\":\"reed\",\"strength\":0.696},{\"at\":0.599,\"notes\":[50,54,59,64],\"length\":0.687,\"voice\":\"reed\",\"strength\":0.812},{\"at\":0.738,\"notes\":[64,71,78],\"length\":0.655,\"voice\":\"glass\",\"strength\":0.464}]",
+    "[{\"at\":0,\"notes\":[54,55,59,62],\"length\":0.303,\"voice\":\"reed\",\"strength\":0.557},{\"at\":0.334,\"notes\":[45,49,55,58],\"length\":0.24,\"voice\":\"reed\",\"strength\":0.643},{\"at\":0.61,\"notes\":[54,59,62,64],\"length\":0.679,\"voice\":\"reed\",\"strength\":0.8},{\"at\":0.751,\"notes\":[66,71,76],\"length\":0.647,\"voice\":\"glass\",\"strength\":0.471}]",
+    "[{\"at\":0,\"notes\":[55,59,62,66],\"length\":0.291,\"voice\":\"reed\",\"strength\":0.56},{\"at\":0.313,\"notes\":[45,49,55,58],\"length\":0.231,\"voice\":\"reed\",\"strength\":0.662},{\"at\":0.572,\"notes\":[50,52,54,59],\"length\":0.653,\"voice\":\"reed\",\"strength\":0.824},{\"at\":0.705,\"notes\":[64,71,78],\"length\":0.622,\"voice\":\"glass\",\"strength\":0.475}]",
+  ],
+};
+
+
+test("the alley cue payloads match their recorded baseline", () => {
+  Object.entries(CUE_BASELINE).forEach(([name, expected], i) => {
+    const score = createScore(seeded(4242 + i * 13));
+    for (let k = 0; k < 3; k++) score.next(k % 2 === 1);
+    const replay = expected.map(() => JSON.stringify(score.cue(name)));
+    assert.deepEqual(replay, expected, name);
+  });
 });

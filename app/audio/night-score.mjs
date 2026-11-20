@@ -2,8 +2,9 @@
  * A generative score for a night-time card table. MIDI and seconds only.
  * Long phrases travel between a few related tonal centers. The lower pedal
  * may stay put while the three keyboard voices and upper harmonics change.
- * A theme is data: home key, chord palette, role pools and the `shape` numbers
- * that tune contour, phrase length, glide and how hard a knock bites.
+ * A theme is data: home key, chord palette, role pools, the `shape` numbers
+ * that tune contour, phrase length and glide, and the `cue` numbers that give
+ * card actions their own sound.
  */
 
 const NOTE_NAMES = [
@@ -77,6 +78,28 @@ export const THEMES = {
       phraseEma: { fast: 0.44, slow: 0.56, min: 4.05, max: 6.4 },
       pedal: { hold: 2.1, release: 0.24, tolerance: 3 },
     },
+    // Cue character. `voices` names the patch each action opens on — the
+    // accent a player hears as the card moves — and the rest of that cue
+    // keeps its scored voices. `scale` trims every strike's strength, `tempo`
+    // stretches every strike's length, `soft` trims named cues further. Alley
+    // is the identity: the original voices at exactly 1 and 1.
+    cue: {
+      voices: {
+        ui: "pluck",
+        deal: "pluck",
+        stock: "reed",
+        take: "glass",
+        throw: "pluck",
+        knock: "reed",
+        blitz: "reed",
+        safe: "glass",
+        lose: "reed",
+        win: "reed",
+      },
+      scale: 1,
+      tempo: 1,
+      soft: {},
+    },
   },
   // Lydian haze over a slow F tide: the 6/9s never quite land.
   vapor: {
@@ -115,6 +138,26 @@ export const THEMES = {
       phraseEma: { fast: 0.34, slow: 0.66, min: 4.9, max: 7.8 },
       pedal: { hold: 2.4, release: 0.3, tolerance: 4 },
     },
+    // Airy and watery: reeds open as glass, glassy cues open as a flute, the
+    // two big card motions splash, everything rings 1.15x longer, and the
+    // knock lands 0.8x as hard.
+    cue: {
+      voices: {
+        ui: "pluck",
+        deal: "glass",
+        stock: "glass",
+        take: "reed",
+        throw: "glass",
+        knock: "glass",
+        blitz: "glass",
+        safe: "reed",
+        lose: "reed",
+        win: "glass",
+      },
+      scale: 1,
+      tempo: 1.15,
+      soft: { knock: 0.8 },
+    },
   },
   // Dorian murk in A: sus chords and long pedals, majors only to surface.
   reef: {
@@ -152,6 +195,25 @@ export const THEMES = {
       periodBase: 9,
       phraseEma: { fast: 0.3, slow: 0.7, min: 5.2, max: 8.2 },
       pedal: { hold: 2.8, release: 0.3, tolerance: 5 },
+    },
+    // Dark and muffled: every action opens on the reedy patch at 0.85 of its
+    // scored strength and 1.2x its length, so nothing rings out over the tide.
+    cue: {
+      voices: {
+        ui: "reed",
+        deal: "reed",
+        stock: "reed",
+        take: "reed",
+        throw: "reed",
+        knock: "reed",
+        blitz: "reed",
+        safe: "reed",
+        lose: "reed",
+        win: "reed",
+      },
+      scale: 0.85,
+      tempo: 1.2,
+      soft: {},
     },
   },
   // Neon-noir dominant churn on G: b9 and #11 borrowed, never resolved.
@@ -192,6 +254,26 @@ export const THEMES = {
       periodBase: 6,
       phraseEma: { fast: 0.55, slow: 0.45, min: 3.3, max: 5.6 },
       pedal: { hold: 1.8, release: 0.2, tolerance: 2 },
+    },
+    // Gritty and close: dry pluck ticks everywhere except the two outcome
+    // signals, 1.1x harder (the strength clamp still caps them) and 0.85x
+    // shorter, so the knock snaps instead of ringing.
+    cue: {
+      voices: {
+        ui: "pluck",
+        deal: "pluck",
+        stock: "pluck",
+        take: "pluck",
+        throw: "pluck",
+        knock: "pluck",
+        blitz: "pluck",
+        safe: "glass",
+        lose: "reed",
+        win: "pluck",
+      },
+      scale: 1.1,
+      tempo: 0.85,
+      soft: {},
     },
   },
 };
@@ -347,10 +429,14 @@ function nearBass(anchor, chordRoot, prior, pedalAge, step, pedal, random) {
 }
 
 // Keep each action's rhythm distinctive. Variation comes from small timing and
-// articulation changes, register and inversions, all driven by the current frame.
-function makeCue(name, frame, context, variant, random) {
+// articulation changes, register and inversions, all driven by the current
+// frame. The theme's `cue` record names the patch a cue opens on and scales
+// every strike's strength and length.
+function makeCue(name, frame, context, variant, random, character) {
   const lengthScale = 0.94 + 0.12 * random();
   const timeScale = 0.94 + 0.12 * random();
+  const openVoice = character.voices[name];
+  const soft = character.soft[name] ?? 1;
   const base = nearestPitch(context.chordRoot, 53);
   const tonic = nearestPitch(context.anchor, 52);
   const majorThird = context.minor ? 3 : 4;
@@ -374,9 +460,17 @@ function makeCue(name, frame, context, variant, random) {
     return {
       at: round(at * timeScale),
       notes: selected,
-      length: round(length * lengthScale),
+      // Both scales sit after the scored value and the random spread, and the
+      // alley theme carries exactly 1 and 1, so its numbers stay unchanged.
+      length: round(length * character.tempo * lengthScale),
       voice,
-      strength: round(clamp(strength * (0.95 + 0.09 * random()), 0.1, 1)),
+      strength: round(
+        clamp(
+          strength * (0.95 + 0.09 * random()) * character.scale * soft,
+          0.1,
+          1,
+        ),
+      ),
     };
   }
   const pickUpper = upper[variant % upper.length];
@@ -392,10 +486,12 @@ function makeCue(name, frame, context, variant, random) {
   const resolved = voicing(tonic, [0, 4, 9, 14]);
   switch (name) {
     case "ui":
-      return [strike(0, [bed[1], bed[2], pickUpper - 12], 0.09, "pluck", 0.31)];
+      return [
+        strike(0, [bed[1], bed[2], pickUpper - 12], 0.09, openVoice, 0.31),
+      ];
     case "stock":
       return [
-        strike(0, invert(color, variant), 0.18, "reed", 0.49),
+        strike(0, invert(color, variant), 0.18, openVoice, 0.49),
         strike(0.105, [bed[2], pickUpper], 0.13, "glass", 0.23),
       ];
     case "take":
@@ -407,7 +503,7 @@ function makeCue(name, frame, context, variant, random) {
             variant,
           ),
           0.24,
-          "glass",
+          openVoice,
           0.54,
         ),
         strike(
@@ -424,13 +520,13 @@ function makeCue(name, frame, context, variant, random) {
           0,
           invert([base - 5, bed[0], bed[1], bed[2]], variant),
           0.083,
-          "pluck",
+          openVoice,
           0.73,
         ),
       ];
     case "deal":
       return [
-        strike(0, invert(color.slice(0, 3), variant), 0.12, "pluck", 0.43),
+        strike(0, invert(color.slice(0, 3), variant), 0.12, openVoice, 0.43),
         strike(
           0.1,
           invert([bed[1], bed[2], pickUpper - 12], variant + 1),
@@ -455,7 +551,7 @@ function makeCue(name, frame, context, variant, random) {
         [0, 6, 10, 11],
       ];
       return [
-        strike(0, voicing(r, clusters[variant % 3]), 0.115, "reed", 0.71),
+        strike(0, voicing(r, clusters[variant % 3]), 0.115, openVoice, 0.71),
         strike(
           0.179,
           voicing(r, clusters[(variant + 1) % 3]),
@@ -474,7 +570,7 @@ function makeCue(name, frame, context, variant, random) {
     }
     case "blitz":
       return [
-        strike(0, voicing(dominant, [0, 4, 10, 13]), 0.16, "reed", 0.74),
+        strike(0, voicing(dominant, [0, 4, 10, 13]), 0.16, openVoice, 0.74),
         strike(0.184, invert(resolved, variant), 0.48, "reed", 0.81),
         strike(
           0.285,
@@ -486,7 +582,7 @@ function makeCue(name, frame, context, variant, random) {
       ];
     case "safe":
       return [
-        strike(0, voicing(base, [0, 7, 14, 17]), 0.15, "glass", 0.43),
+        strike(0, voicing(base, [0, 7, 14, 17]), 0.15, openVoice, 0.43),
         strike(
           0.155,
           invert(voicing(base, [0, majorThird, 9, 14]), variant),
@@ -497,7 +593,7 @@ function makeCue(name, frame, context, variant, random) {
       ];
     case "lose":
       return [
-        strike(0, voicing(base, [0, 7, 14, 15]), 0.18, "reed", 0.44),
+        strike(0, voicing(base, [0, 7, 14, 15]), 0.18, openVoice, 0.44),
         strike(
           0.203,
           invert(voicing(base - 5, [0, 3, 7, 10]), variant),
@@ -513,7 +609,7 @@ function makeCue(name, frame, context, variant, random) {
           0,
           invert(voicing(fourth, [0, 4, 7, 11]), variant + 1),
           0.29,
-          "reed",
+          openVoice,
           0.57,
         ),
         strike(0.324, voicing(dominant, [0, 4, 10, 13]), 0.23, "reed", 0.67),
@@ -533,7 +629,8 @@ function makeCue(name, frame, context, variant, random) {
 }
 
 export function createScore(random = Math.random, theme = DEFAULT_THEME) {
-  const { home, chords, roles, pressure, shape } = resolveTheme(theme);
+  const { home, chords, roles, pressure, shape, cue: character } =
+    resolveTheme(theme);
   const harmonyRandom = stream(random, 0x4e656b6f);
   const cueRandom = stream(random, 0x41726361);
   const frameInfo = new WeakMap();
@@ -683,6 +780,7 @@ export function createScore(random = Math.random, theme = DEFAULT_THEME) {
       frameInfo.get(frameOverride) ?? fallback,
       count,
       cueRandom,
+      character,
     );
   }
   return { current: () => currentFrame, next, cue };
