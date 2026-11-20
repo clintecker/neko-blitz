@@ -149,7 +149,12 @@ export class ArcadeMixer {
       return;
     }
     this.report("Music playing");
-    if (this.timer != null) return;
+    if (this.timer != null) {
+      // A theme swap tears the canopy down while the clock keeps running; the
+      // running tick must not block the bed from starting again.
+      this.synth.startAmbient();
+      return;
+    }
     this.synth.startAmbient();
     const tick = () => {
       if (this.context.state !== "running" || this.closed || document.hidden)
