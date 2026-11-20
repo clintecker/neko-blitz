@@ -1,4 +1,31 @@
-import { createScore } from "./night-score.mjs";
+import * as nightScore from "./night-score.mjs";
+
+const { createScore } = nightScore;
+const fallbackTheme = nightScore.DEFAULT_THEME;
+
+// The score module owns the theme registry. Reading it through the namespace
+// keeps this module loadable against a score build that ships only the
+// default theme.
+function readThemes() {
+  const source = nightScore.themeList ?? nightScore.THEMES;
+  const registry = typeof source === "function" ? source() : source;
+  const entries = Array.isArray(registry)
+    ? registry.map((theme) => [theme?.id, theme])
+    : registry && typeof registry === "object"
+      ? Object.entries(registry)
+      : [];
+  const themes = entries
+    .map(([id, theme]) => ({ id: theme?.id ?? id, name: theme?.name ?? id }))
+    .filter((theme) => typeof theme.id === "string");
+  return themes.length ? themes : [{ id: fallbackTheme, name: "Alley" }];
+}
+
+export const SCORE_THEMES = Object.freeze(readThemes());
+
+// A stored preference can name a theme this build no longer ships.
+export function resolveThemeId(id) {
+  return SCORE_THEMES.some((theme) => theme.id === id) ? id : fallbackTheme;
+}
 
 const hz = (note) => 440 * 2 ** ((note - 69) / 12);
 const range = (random, low, high) => low + random() * (high - low);
@@ -455,11 +482,16 @@ class Canopy {
 // The browser clock and OfflineAudioContext use the same score, envelopes,
 // oscillators and mix. The player only has to keep the short horizon fed.
 export class TableSynth {
-  constructor(ctx, destination, { random = Math.random, sparkle = 0.78 } = {}) {
+  constructor(
+    ctx,
+    destination,
+    { random = Math.random, sparkle = 0.78, theme = fallbackTheme } = {},
+  ) {
     this.ctx = ctx;
     this.random = random;
     this.waves = initWaves(ctx);
-    this.score = createScore(random);
+    this.theme = resolveThemeId(theme);
+    this.score = createScore(random, this.theme);
     this.sparkle = sparkle;
     this.tension = false;
     this.knockUntil = 0;
@@ -493,6 +525,16 @@ export class TableSynth {
   setSparkle(amount) {
     this.sparkle = limit(amount, 0, 1);
     this.canopy?.setSparkle(this.sparkle);
+  }
+  // The score is pure data, so a theme swap only restarts the canopy that
+  // reads it. stopAmbient fades the old voices out and releases their nodes.
+  setTheme(theme) {
+    const next = resolveThemeId(theme);
+    if (next === this.theme) return;
+    this.theme = next;
+    this.stopAmbient();
+    this.score = createScore(this.random, next);
+    this.nextQuietChange = this.ctx.currentTime + this.score.current().seconds;
   }
   play(
     name,
@@ -567,3 +609,6 @@ export class TableSynth {
     this.musicBus.disconnect();
   }
 }
+
+// The default id, exported so settings defaults never re-spell it.
+TableSynth.defaultTheme = fallbackTheme;

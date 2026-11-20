@@ -41,7 +41,7 @@ A room code locates a room. The bearer token grants access to an existing seat. 
 
 ## Audio
 
-`app/audio/night-score.mjs` produces harmony and cue data. `app/audio/night-synth.mjs` turns that score into Web Audio oscillators, filters, envelopes, delay, and stereo placement. `app/arcade-audio.js` owns the audio context, mixer preferences, gesture unlocking, background interruptions, and scheduling. React subscribes to the chord label without advancing the musical clock.
+`app/audio/night-score.mjs` produces harmony and cue data through a theme registry, so `createScore` takes a theme id and the mixer stores the player's choice next to the volume preference. `app/audio/night-synth.mjs` turns that score into Web Audio oscillators, filters, envelopes, delay, and stereo placement; changing theme rebuilds the score under the running context. `app/arcade-audio.js` owns the audio context, mixer preferences, gesture unlocking, background interruptions, and scheduling. React subscribes to the chord label without advancing the musical clock.
 
 Game cues follow the visible motion queue, so card impacts stay synchronized with both local and polled remote turns. Muting and closing release oscillators and delay paths.
 

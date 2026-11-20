@@ -11,6 +11,7 @@ import {
   Zap,
 } from "lucide-react";
 import { Modal } from "./pieces";
+import { SCORE_THEMES, resolveThemeId } from "./audio/night-synth.mjs";
 
 const samples = [
   [Layers, "stock", "Draw stock"],
@@ -23,6 +24,9 @@ const samples = [
 
 export function SoundPanel({ sound, close }) {
   const { settings, change, preview, toggle } = sound;
+  const theme = resolveThemeId(settings.score);
+  const themeName =
+    SCORE_THEMES.find((option) => option.id === theme)?.name ?? theme;
   const chord = useSyncExternalStore(sound.subscribe, sound.getChord, () => "");
   const playback = useSyncExternalStore(sound.subscribe, sound.getPlayback, () => "Tap to start music");
   const [playing, setPlaying] = useState(null);
@@ -75,10 +79,30 @@ export function SoundPanel({ sound, close }) {
         >
           <Music2 size={19} />
           <span className="music-title">
-            Arcade music<small>Glass Canopy · live synth</small>
+            Arcade music<small>{themeName} · live synth</small>
           </span>
           <i className="switch-track" aria-hidden="true" />
         </button>
+        {/* Picking a muted soundtrack turns it on, like the music switch. */}
+        <fieldset className="sample-sounds">
+          <legend>Soundtrack</legend>
+          {SCORE_THEMES.map((option) => (
+            <button
+              key={option.id}
+              className={`action ${option.id === theme ? "primary" : "outline"}`}
+              aria-pressed={option.id === theme}
+              onClick={() =>
+                change(
+                  settings.music
+                    ? { score: option.id }
+                    : { score: option.id, music: true, enabled: true },
+                )
+              }
+            >
+              {option.name}
+            </button>
+          ))}
+        </fieldset>
         <label className="audio-volume">
           <span>
             Sparkle <output>{settings.sparkle}%</output>

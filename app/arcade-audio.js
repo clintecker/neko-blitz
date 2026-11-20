@@ -2,7 +2,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { TableSynth } from "./audio/night-synth.mjs";
 
-const initial = { enabled: true, music: true, volume: 75, sparkle: 78 };
+const initial = {
+  enabled: true,
+  music: true,
+  volume: 75,
+  sparkle: 78,
+  score: TableSynth.defaultTheme,
+};
 const storageKey = "neko-blitz.mixer";
 const clamp = (value, fallback) =>
   Number.isFinite(value)
@@ -18,6 +24,8 @@ function storedPreferences() {
         music: typeof saved.music === "boolean" ? saved.music : initial.music,
         volume: clamp(saved.volume, initial.volume),
         sparkle: clamp(saved.sparkle, initial.sparkle),
+        // Mixers saved before soundtrack themes existed have no score.
+        score: typeof saved.score === "string" ? saved.score : initial.score,
       };
     }
     return {
@@ -78,7 +86,10 @@ export class ArcadeMixer {
         this.master = ctx.createGain();
         this.master.gain.value = this.level();
         limiter.connect(this.master).connect(ctx.destination);
-        this.synth = new TableSynth(ctx, limiter, { sparkle: this.settings.sparkle / 100 });
+        this.synth = new TableSynth(ctx, limiter, {
+          sparkle: this.settings.sparkle / 100,
+          theme: this.settings.score,
+        });
         this.synth.tension = this.pressure;
         ctx.onstatechange = () => {
           if (ctx.state === "running") this.sync();
@@ -170,6 +181,9 @@ export class ArcadeMixer {
     if (!ctx || !this.synth) return;
     this.master.gain.setTargetAtTime(this.level(), ctx.currentTime, 0.014);
     this.synth.setSparkle(settings.sparkle / 100);
+    // A new theme restarts the canopy inside the running context, so music
+    // keeps playing through the change instead of waiting for a gesture.
+    if (settings.score !== this.synth.theme) this.synth.setTheme(settings.score);
     clearTimeout(this.idle);
     if (!settings.enabled || !settings.volume) {
       this.quiet();

@@ -2,9 +2,10 @@
  * A generative score for a night-time card table. MIDI and seconds only.
  * Long phrases travel between a few related tonal centers. The lower pedal
  * may stay put while the three keyboard voices and upper harmonics change.
+ * A theme is data: home key, chord palette, role pools and the `shape` numbers
+ * that tune contour, phrase length, glide and how hard a knock bites.
  */
 
-const HOME = 2; // D
 const NOTE_NAMES = [
   "C",
   "D♭",
@@ -23,41 +24,191 @@ const mod12 = (n) => ((n % 12) + 12) % 12;
 const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
 const round = (n) => Math.round(n * 1000) / 1000;
 
-// Root degree, quality, structural third/suspension, upper colors, all chord tones.
-// The last two shapes are distant dominant colors reserved for a phrase approach.
-const CHORDS = {
-  sixth: [0, "6/9", 4, [2, 9], [0, 2, 4, 7, 9]],
-  major: [0, "maj9", 4, [2, 11], [0, 2, 4, 7, 11]],
-  lydian: [0, "maj9(♯11)", 4, [6, 11], [0, 2, 4, 6, 7, 11]],
-  hollow: [0, "sus2/4", 5, [2, 9], [0, 2, 5, 7, 9]],
-  violet: [0, "m(add9)", 3, [2, 10], [0, 2, 3, 7, 10]],
-  garden: [5, "maj9(♯11)", 4, [6, 11], [0, 2, 4, 6, 7, 11]],
-  fourth: [5, "6/9", 4, [2, 9], [0, 2, 4, 7, 9]],
-  minor: [9, "m11", 3, [2, 5, 10], [0, 2, 3, 5, 7, 10]],
-  second: [2, "m9", 3, [2, 10], [0, 2, 3, 7, 10]],
-  mediant: [4, "m7(add11)", 3, [5, 10], [0, 3, 5, 7, 10]],
-  borrowed: [10, "maj9(♯11)", 4, [6, 11], [0, 2, 4, 6, 7, 11]],
-  bridge: [7, "9sus4", 5, [2, 10], [0, 2, 5, 7, 10]],
-  amber: [7, "13", 4, [9, 10], [0, 2, 4, 7, 9, 10]],
-  ember: [7, "7(♭9)", 4, [1, 10], [0, 1, 4, 7, 10]],
-  prism: [7, "7(♯11)", 4, [6, 10], [0, 2, 4, 6, 10]],
+// Root degree, quality, structural third/suspension, upper colors, all chord
+// tones. Tone 2 is the guide: makeCue reads minorness from `shape[2] === 3`,
+// so it must sit at index 2 exactly and match whether the tones hold a ♭3.
+// `pressure` joins a role pool while a knock still rings.
+export const THEMES = {
+  alley: {
+    name: "Neon Alley",
+    home: 2, // D
+    chords: {
+      sixth: [0, "6/9", 4, [2, 9], [0, 2, 4, 7, 9]],
+      major: [0, "maj9", 4, [2, 11], [0, 2, 4, 7, 11]],
+      lydian: [0, "maj9(♯11)", 4, [6, 11], [0, 2, 4, 6, 7, 11]],
+      hollow: [0, "sus2/4", 5, [2, 9], [0, 2, 5, 7, 9]],
+      violet: [0, "m(add9)", 3, [2, 10], [0, 2, 3, 7, 10]],
+      garden: [5, "maj9(♯11)", 4, [6, 11], [0, 2, 4, 6, 7, 11]],
+      fourth: [5, "6/9", 4, [2, 9], [0, 2, 4, 7, 9]],
+      minor: [9, "m11", 3, [2, 5, 10], [0, 2, 3, 5, 7, 10]],
+      second: [2, "m9", 3, [2, 10], [0, 2, 3, 7, 10]],
+      mediant: [4, "m7(add11)", 3, [5, 10], [0, 3, 5, 7, 10]],
+      borrowed: [10, "maj9(♯11)", 4, [6, 11], [0, 2, 4, 6, 7, 11]],
+      bridge: [7, "9sus4", 5, [2, 10], [0, 2, 5, 7, 10]],
+      amber: [7, "13", 4, [9, 10], [0, 2, 4, 7, 9, 10]],
+      ember: [7, "7(♭9)", 4, [1, 10], [0, 1, 4, 7, 10]],
+      prism: [7, "7(♯11)", 4, [6, 10], [0, 2, 4, 6, 10]],
+    },
+    roles: {
+      land: ["sixth", "major", "hollow", "violet"],
+      open: ["major", "lydian", "garden", "fourth", "hollow", "minor"],
+      roam: [
+        "garden",
+        "fourth",
+        "minor",
+        "second",
+        "mediant",
+        "borrowed",
+        "lydian",
+      ],
+      turn: ["second", "minor", "bridge", "amber", "prism"],
+      lean: ["bridge", "amber", "ember", "prism", "hollow"],
+    },
+    pressure: ["ember", "prism", "bridge"],
+    shape: {
+      openRoot: 38,
+      contourBase: 61.5,
+      contourSway: 2.5,
+      secondsBase: 5.25,
+      secondsSway: 0.65,
+      secondsJitter: 0.8,
+      tensionFactor: -0.46, // seconds added per frame while a knock bites
+      periodBase: 7,
+      phraseEma: { fast: 0.44, slow: 0.56, min: 4.05, max: 6.4 },
+      pedal: { hold: 2.1, release: 0.24, tolerance: 3 },
+    },
+  },
+  // Lydian haze over a slow F tide: the 6/9s never quite land.
+  vapor: {
+    name: "Vapor Bay",
+    home: 5, // F
+    chords: {
+      sixth: [0, "6/9", 4, [2, 9], [0, 2, 4, 7, 9]],
+      major: [0, "maj9", 4, [2, 11], [0, 2, 4, 7, 11]],
+      lydian: [0, "maj9(♯11)", 4, [6, 11], [0, 2, 4, 6, 7, 11]],
+      glass: [0, "6/9(♯11)", 4, [6, 9], [0, 2, 4, 6, 7, 9]],
+      hollow: [0, "sus2/4", 5, [2, 9], [0, 2, 5, 7, 9]],
+      violet: [0, "m(add9)", 3, [2, 10], [0, 2, 3, 7, 10]],
+      mist: [9, "m9", 3, [2, 10], [0, 2, 3, 7, 10]],
+      drift: [4, "m7(add11)", 3, [5, 10], [0, 3, 5, 7, 10]],
+      tide: [5, "maj9(♯11)", 4, [6, 11], [0, 2, 4, 6, 7, 11]],
+      amber: [7, "13", 4, [9, 10], [0, 2, 4, 7, 9, 10]],
+      prism: [7, "7(♯11)", 4, [6, 10], [0, 2, 4, 6, 10]],
+    },
+    roles: {
+      land: ["major", "lydian", "sixth", "hollow"],
+      open: ["lydian", "glass", "major", "sixth", "hollow", "mist"],
+      roam: ["lydian", "glass", "mist", "drift", "hollow", "sixth"],
+      turn: ["mist", "drift", "tide", "prism"],
+      lean: ["tide", "amber", "prism", "hollow", "sixth"],
+    },
+    pressure: ["prism", "amber", "tide"],
+    shape: {
+      openRoot: 41,
+      contourBase: 63,
+      contourSway: 3,
+      secondsBase: 6.6,
+      secondsSway: 0.85,
+      secondsJitter: 0.9,
+      tensionFactor: -0.3,
+      periodBase: 8,
+      phraseEma: { fast: 0.34, slow: 0.66, min: 4.9, max: 7.8 },
+      pedal: { hold: 2.4, release: 0.3, tolerance: 4 },
+    },
+  },
+  // Dorian murk in A: sus chords and long pedals, majors only to surface.
+  reef: {
+    name: "Sunken Reef",
+    home: 9, // A
+    chords: {
+      deep: [0, "m9", 3, [2, 10], [0, 2, 3, 7, 10]],
+      minor: [0, "m11", 3, [2, 5, 10], [0, 2, 3, 5, 7, 10]],
+      mediant: [0, "m7(add11)", 3, [5, 10], [0, 3, 5, 7, 10]],
+      sixth: [0, "6/9", 4, [2, 9], [0, 2, 4, 7, 9]],
+      hollow: [0, "sus2/4", 5, [2, 9], [0, 2, 5, 7, 9]],
+      bridge: [0, "9sus4", 5, [2, 10], [0, 2, 5, 7, 10]],
+      second: [2, "m9", 3, [2, 10], [0, 2, 3, 7, 10]],
+      fourth: [5, "m7(add11)", 3, [5, 10], [0, 3, 5, 7, 10]],
+      drift: [7, "m9", 3, [2, 10], [0, 2, 3, 7, 10]],
+      surface: [3, "maj9", 4, [2, 11], [0, 2, 4, 7, 11]],
+      tide: [10, "maj9", 4, [2, 11], [0, 2, 4, 7, 11]],
+    },
+    roles: {
+      land: ["minor", "deep", "hollow", "bridge"],
+      open: ["minor", "deep", "hollow", "bridge", "second", "fourth"],
+      roam: ["deep", "mediant", "minor", "drift", "second", "fourth"],
+      turn: ["bridge", "second", "drift", "surface", "tide"],
+      lean: ["bridge", "surface", "tide", "hollow", "mediant"],
+    },
+    pressure: ["bridge", "tide", "mediant"],
+    shape: {
+      openRoot: 45,
+      contourBase: 59.5,
+      contourSway: 1.6,
+      secondsBase: 6.9,
+      secondsSway: 0.7,
+      secondsJitter: 0.75,
+      tensionFactor: -0.55,
+      periodBase: 9,
+      phraseEma: { fast: 0.3, slow: 0.7, min: 5.2, max: 8.2 },
+      pedal: { hold: 2.8, release: 0.3, tolerance: 5 },
+    },
+  },
+  // Neon-noir dominant churn on G: b9 and #11 borrowed, never resolved.
+  ember: {
+    name: "Static Ember",
+    home: 7, // G
+    chords: {
+      amber: [0, "13", 4, [9, 10], [0, 2, 4, 7, 9, 10]],
+      ember: [0, "7(♭9)", 4, [1, 10], [0, 1, 4, 7, 10]],
+      prism: [0, "7(♯11)", 4, [6, 10], [0, 2, 4, 6, 10]],
+      bridge: [0, "9sus4", 5, [2, 10], [0, 2, 5, 7, 10]],
+      deep: [0, "m9", 3, [2, 10], [0, 2, 3, 7, 10]],
+      lydian: [0, "maj9(♯11)", 4, [6, 11], [0, 2, 4, 6, 7, 11]],
+      sixth: [0, "6/9", 4, [2, 9], [0, 2, 4, 7, 9]],
+      violet: [0, "m(add9)", 3, [2, 10], [0, 2, 3, 7, 10]],
+      second: [2, "m9", 3, [2, 10], [0, 2, 3, 7, 10]],
+      mediant: [3, "m7(add11)", 3, [5, 10], [0, 3, 5, 7, 10]],
+      borrowed: [5, "maj9(♯11)", 4, [6, 11], [0, 2, 4, 6, 7, 11]],
+      drift: [9, "m7(add11)", 3, [5, 10], [0, 3, 5, 7, 10]],
+      tide: [10, "maj9", 4, [2, 11], [0, 2, 4, 7, 11]],
+    },
+    roles: {
+      land: ["amber", "sixth", "deep", "bridge"],
+      open: ["amber", "sixth", "lydian", "bridge", "violet", "second"],
+      roam: ["amber", "second", "mediant", "lydian", "ember", "drift"],
+      turn: ["ember", "prism", "second", "bridge", "mediant", "drift"],
+      lean: ["ember", "prism", "amber", "bridge", "mediant"],
+    },
+    pressure: ["ember", "prism", "bridge"],
+    shape: {
+      openRoot: 43,
+      contourBase: 60.5,
+      contourSway: 3.2,
+      secondsBase: 4.6,
+      secondsSway: 0.55,
+      secondsJitter: 1.1,
+      tensionFactor: -0.75,
+      periodBase: 6,
+      phraseEma: { fast: 0.55, slow: 0.45, min: 3.3, max: 5.6 },
+      pedal: { hold: 1.8, release: 0.2, tolerance: 2 },
+    },
+  },
 };
 
-const ROLES = {
-  land: ["sixth", "major", "hollow", "violet"],
-  open: ["major", "lydian", "garden", "fourth", "hollow", "minor"],
-  roam: [
-    "garden",
-    "fourth",
-    "minor",
-    "second",
-    "mediant",
-    "borrowed",
-    "lydian",
-  ],
-  turn: ["second", "minor", "bridge", "amber", "prism"],
-  lean: ["bridge", "amber", "ember", "prism", "hollow"],
-};
+export const DEFAULT_THEME = "alley";
+
+export function resolveTheme(id) {
+  return Object.hasOwn(THEMES, id) ? THEMES[id] : THEMES[DEFAULT_THEME];
+}
+
+// Selector payload: ids stay stable, names are for display.
+export function themeList() {
+  return Object.entries(THEMES).map(([id, theme]) => ({
+    id,
+    name: theme.name,
+  }));
+}
 
 // Isolate the score clock from UI interaction. A burst of clicks cannot consume
 // the random draws that would otherwise determine the next harmonic phrase.
@@ -170,7 +321,7 @@ function upperLights(root, shape, previous, random) {
   return notes;
 }
 
-function nearBass(anchor, chordRoot, prior, pedalAge, phraseStep, random) {
+function nearBass(anchor, chordRoot, prior, pedalAge, step, pedal, random) {
   const available = pitches(36, 50, [anchor, chordRoot, mod12(chordRoot + 7)]);
   const nearby = available.filter((n) => Math.abs(n - prior) <= 7);
   return weighted(
@@ -178,10 +329,14 @@ function nearBass(anchor, chordRoot, prior, pedalAge, phraseStep, random) {
     (n) => {
       const home = mod12(n) === anchor,
         old = n === prior;
-      const pedal = home ? (phraseStep < 2 ? 4.2 : 2.6) : 1;
-      const hold = old ? (pedalAge >= 3 ? 0.24 : 2.1) : 1;
+      const rest = home ? (step < 2 ? 4.2 : 2.6) : 1;
+      const hold = old
+        ? pedalAge >= pedal.tolerance
+          ? pedal.release
+          : pedal.hold
+        : 1;
       return (
-        pedal *
+        rest *
         hold *
         (mod12(n) === chordRoot ? 2.5 : 1) *
         Math.exp(-Math.abs(n - prior) / 3.1)
@@ -377,23 +532,24 @@ function makeCue(name, frame, context, variant, random) {
   }
 }
 
-export function createScore(random = Math.random) {
+export function createScore(random = Math.random, theme = DEFAULT_THEME) {
+  const { home, chords, roles, pressure, shape } = resolveTheme(theme);
   const harmonyRandom = stream(random, 0x4e656b6f);
   const cueRandom = stream(random, 0x41726361);
   const frameInfo = new WeakMap();
   const counts = new Map();
   const recent = [];
-  let anchor = HOME,
+  let anchor = home,
     age = 0,
     phrase = 0,
     step = 0,
     pedalAge = 0;
-  let period = 7,
+  let period = shape.periodBase,
     currentFrame;
 
   function frameFor(name, tension) {
-    const shape = CHORDS[name],
-      chordRoot = mod12(anchor + shape[0]);
+    const chord = chords[name],
+      chordRoot = mod12(anchor + chord[0]);
     const previous = currentFrame;
     const root = previous
       ? nearBass(
@@ -402,35 +558,41 @@ export function createScore(random = Math.random) {
           previous.root,
           pedalAge,
           step,
+          shape.pedal,
           harmonyRandom,
         )
-      : 38;
+      : shape.openRoot;
     pedalAge = previous && root === previous.root ? pedalAge + 1 : 0;
     const contour =
-      61.5 + 2.5 * Math.sin(phrase * 0.68 + (step / period) * Math.PI);
+      shape.contourBase +
+      shape.contourSway *
+        Math.sin(phrase * 0.68 + (step / period) * Math.PI);
     const bed = leadBed(
       chordRoot,
-      shape,
+      chord,
       previous?.bed ?? [54, 59, 64],
       contour,
       harmonyRandom,
     );
     const stars = upperLights(
       chordRoot,
-      shape,
+      chord,
       previous?.stars ?? [],
       harmonyRandom,
     );
     const desired =
-      5.25 +
-      0.65 * Math.sin(phrase + step * 0.69) +
-      (harmonyRandom() - 0.5) * 0.8 -
-      (tension ? 0.46 : 0);
+      shape.secondsBase +
+      shape.secondsSway * Math.sin(phrase + step * 0.69) +
+      (harmonyRandom() - 0.5) * shape.secondsJitter +
+      (tension ? shape.tensionFactor : 0);
+    const ema = shape.phraseEma;
     const seconds = round(
       clamp(
-        previous ? 0.56 * previous.seconds + 0.44 * desired : desired,
-        4.05,
-        6.4,
+        previous
+          ? ema.slow * previous.seconds + ema.fast * desired
+          : desired,
+        ema.min,
+        ema.max,
       ),
     );
     const frame = Object.freeze({
@@ -438,9 +600,9 @@ export function createScore(random = Math.random) {
       bed: Object.freeze(bed),
       stars: Object.freeze(stars),
       seconds,
-      label: NOTE_NAMES[chordRoot] + shape[1],
+      label: NOTE_NAMES[chordRoot] + chord[1],
     });
-    frameInfo.set(frame, { anchor, chordRoot, minor: shape[2] === 3 });
+    frameInfo.set(frame, { anchor, chordRoot, minor: chord[2] === 3 });
     recent.unshift(name);
     recent.length = Math.min(recent.length, 6);
     return frame;
@@ -454,7 +616,7 @@ export function createScore(random = Math.random) {
       age++;
       period = weighted(
         [5, 6, 7, 8, 9],
-        (n) => (n === 7 ? 2 : 1),
+        (n) => (n === shape.periodBase ? 2 : 1),
         harmonyRandom,
       );
       if (age >= 2 && harmonyRandom() < Math.min(0.85, 0.2 + age * 0.115)) {
@@ -462,11 +624,11 @@ export function createScore(random = Math.random) {
           mod12(anchor + 5),
           mod12(anchor + 7),
           mod12(anchor + 2),
-          HOME,
+          home,
         ];
         anchor = weighted(
           nearby,
-          (n) => (n === HOME && anchor !== HOME ? 2.1 : n === anchor ? 0.2 : 1),
+          (n) => (n === home && anchor !== home ? 2.1 : n === anchor ? 0.2 : 1),
           harmonyRandom,
         );
         age = 0;
@@ -484,17 +646,16 @@ export function createScore(random = Math.random) {
               : "roam";
     const choices =
       tension && step !== 0
-        ? [...new Set([...ROLES[role], "ember", "prism", "bridge"])]
-        : ROLES[role];
+        ? [...new Set([...roles[role], ...pressure])]
+        : roles[role];
     const name = weighted(
       choices,
       (candidate) => {
         const last = recent.indexOf(candidate);
         const memory =
           last < 0 ? 1.7 : [0.025, 0.13, 0.28, 0.49, 0.68, 0.84][last];
-        const pressure =
-          tension && ["ember", "prism", "bridge"].includes(candidate) ? 2.1 : 1;
-        return memory * pressure;
+        const bite = pressure.includes(candidate) ? 2.1 : 1;
+        return memory * (tension ? bite : 1);
       },
       harmonyRandom,
     );
@@ -502,7 +663,7 @@ export function createScore(random = Math.random) {
     return currentFrame;
   }
 
-  currentFrame = frameFor("sixth", false);
+  currentFrame = frameFor(roles.land[0], false);
   function cue(name, frameOverride = currentFrame) {
     const count = counts.get(name) ?? Math.floor(cueRandom() * 9);
     counts.set(name, count + 1);

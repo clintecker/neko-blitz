@@ -7,6 +7,7 @@
 - Simplified the Worker entry point, dependency set, and development commands.
 - Added complete Cloudflare deployment instructions, a deploy command, custom-domain guidance, and a built-Worker smoke test.
 - Added a daily deal: one date-seeded challenge match, a shareable result card, and a local streak that only this browser records.
+- Added selectable soundtrack themes to the arcade sound panel, with the original score as the default.
 
 ## 0.1.0 — 2026-11-19
 
