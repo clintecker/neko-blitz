@@ -18,7 +18,7 @@
     "test:worker": "node checks/worker-smoke.mjs"
   },
   "dependencies": {
-    "lucide-react": "^1.31.0",
+    "lucide-react": "^1.78.0",
     "react": "19.2.6",
     "react-dom": "19.2.6"
   },
